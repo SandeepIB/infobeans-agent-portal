@@ -1,0 +1,165 @@
+{% extends "base_admin.html" %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<div class="adm-header">
+  <h1>User Management</h1>
+  <p>Add and manage authorised users</p>
+</div>
+
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+  <button class="btn btn-primary" onclick="openAdd()">+ Add User</button>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="usersTable">
+        {% for u in users %}
+        <tr id="row-{{ u.id }}">
+          <td>{{ u.email }}</td>
+          <td>{{ u.display_name or '—' }}</td>
+          <td>{% if u.is_admin %}<span class="badge badge-red">Admin</span>{% else %}<span class="badge badge-grey">User</span>{% endif %}</td>
+          <td>{% if u.is_active %}<span class="badge badge-green">Active</span>{% else %}<span class="badge badge-red">Inactive</span>{% endif %}</td>
+          <td style="font-size:.8rem;color:var(--muted)">{{ u.last_login_at.strftime('%Y-%m-%d') if u.last_login_at else 'Never' }}</td>
+          <td>
+            <button class="btn" onclick="editUser({{ u.id }}, '{{ u.email }}', '{{ u.display_name or '' }}', {{ 'true' if u.is_active else 'false' }}, {{ 'true' if u.is_admin else 'false' }})">Edit</button>
+            <button class="btn" onclick="managePerms({{ u.id }}, '{{ u.email }}')">Permissions</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No users yet. Add one above.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Add user modal #}
+<div class="modal-overlay hidden" id="addModal">
+  <div class="modal">
+    <h3>Add User</h3>
+    <div class="form-group"><label>Email</label><input type="email" id="addEmail" placeholder="user@infobeans.com"></div>
+    <div class="form-group"><label>Display Name (optional)</label><input type="text" id="addName" placeholder="Full Name"></div>
+    <div class="form-group">
+      <label><input type="checkbox" id="addAdmin"> Grant administrator access</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAdd()">Add User</button>
+    </div>
+  </div>
+</div>
+
+{# Edit user modal #}
+<div class="modal-overlay hidden" id="editModal">
+  <div class="modal">
+    <h3>Edit User</h3>
+    <input type="hidden" id="editId">
+    <div class="form-group"><label>Display Name</label><input type="text" id="editName"></div>
+    <div class="form-group">
+      <label><input type="checkbox" id="editActive"> Active</label>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" id="editAdmin"> Administrator</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+{# Permissions modal #}
+<div class="modal-overlay hidden" id="permModal">
+  <div class="modal" style="width:520px">
+    <h3>Manage Permissions: <span id="permEmail"></span></h3>
+    <input type="hidden" id="permUserId">
+    <div id="permList"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModals()">Close</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+
+
+{% block scripts %}
+<script>
+var APPS = {{ apps | tojson }};
+
+function closeModals(){document.querySelectorAll(".modal-overlay").forEach(m=>m.classList.add("hidden"))}
+
+function openAdd(){document.getElementById("addModal").classList.remove("hidden")}
+
+function editUser(id,email,name,active,admin){
+  document.getElementById("editId").value=id;
+  document.getElementById("editName").value=name;
+  document.getElementById("editActive").checked=active;
+  document.getElementById("editAdmin").checked=admin;
+  document.getElementById("editModal").classList.remove("hidden");
+}
+
+function submitAdd(){
+  var email=document.getElementById("addEmail").value.trim();
+  var name=document.getElementById("addName").value.trim();
+  var isAdmin=document.getElementById("addAdmin").checked;
+  if(!email){toast("Email required",false);return}
+  api("POST","/admin/api/users",{email,display_name:name||null,is_admin:isAdmin})
+    .then(u=>{toast("User added");setTimeout(()=>location.reload(),800)})
+    .catch(e=>toast(e.message,false))
+}
+
+function submitEdit(){
+  var id=document.getElementById("editId").value;
+  var name=document.getElementById("editName").value.trim();
+  var active=document.getElementById("editActive").checked;
+  var admin=document.getElementById("editAdmin").checked;
+  api("PATCH","/admin/api/users/"+id,{display_name:name||null,is_active:active,is_admin:admin})
+    .then(()=>{toast("Saved");setTimeout(()=>location.reload(),800)})
+    .catch(e=>toast(e.message,false))
+}
+
+function managePerms(uid,email){
+  document.getElementById("permUserId").value=uid;
+  document.getElementById("permEmail").textContent=email;
+  document.getElementById("permModal").classList.remove("hidden");
+  api("GET","/admin/api/permissions?user_id="+uid).catch(()=>{})
+  // Render app list with toggle buttons
+  var list=document.getElementById("permList");
+  list.innerHTML="<p style='color:var(--muted);font-size:.85rem'>Loading...</p>";
+  // Get current perms for user via users endpoint
+  api("GET","/admin/api/users/"+uid+"/permissions")
+    .then(function(perms){
+      var permAppIds=new Set(perms.map(p=>p.app_id));
+      list.innerHTML=APPS.map(function(app){
+        var has=permAppIds.has(app.id);
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)">'+
+          '<span>'+app.name+'</span>'+
+          '<button class="btn '+(has?"btn-danger":"btn-primary")+'" onclick="togglePerm('+uid+','+app.id+','+has+',this)">'+
+          (has?'Revoke':'Grant')+'</button></div>';
+      }).join('')||"<p style='color:var(--muted)'>No applications registered</p>";
+    })
+    .catch(function(){list.innerHTML="<p style='color:#b91c1c'>Failed to load permissions</p>"})
+}
+
+function togglePerm(uid,appId,hasIt,btn){
+  if(hasIt){
+    api("DELETE","/admin/api/permissions",{user_id:uid,app_id:appId})
+      .then(()=>{toast("Permission revoked");managePerms(uid,document.getElementById("permEmail").textContent)})
+      .catch(e=>toast(e.message,false))
+  } else {
+    api("POST","/admin/api/permissions",{user_id:uid,app_id:appId})
+      .then(()=>{toast("Permission granted");managePerms(uid,document.getElementById("permEmail").textContent)})
+      .catch(e=>toast(e.message,false))
+  }
+}
+
+document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",function(e){if(e.target===m)closeModals()}));
+</script>
+{% endblock %}

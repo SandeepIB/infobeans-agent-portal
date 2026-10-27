@@ -1,0 +1,208 @@
+{#- ─────────────────────────────────────────────────────────────────────────
+    InfoBeans PPT Review Report — Jinja2 Template
+    Rendered by: services/report_service.py :: build_html()
+
+    Context variables injected by the renderer:
+      score          int          Overall deck score 0-100
+      score_class    str          'pass' | 'warn' | 'fail'
+      score_label    str          'READY' | 'REVIEW' | 'BLOCKED'
+      filename       str          Uploaded file name
+      run_id         str          Unique run identifier
+      started_fmt    str          Human-readable start timestamp
+      generated_at   str          Report generation timestamp
+      css            str          Inlined CSS content (from report.css)
+      agent_results  list[dict]   Per-agent output dicts
+      all_findings   list[dict]   Flat list of all findings with 'agent' key
+      finding_groups list[tuple]  [(slide_key, [finding, ...])]
+      pills          list[dict]   [{cls, icon, label}]
+      total_tokens   int
+      cost_usd       float
+      critical_n     int
+      high_n         int
+      completed_n    int
+      failed_n       int
+─────────────────────────────────────────────────────────────────────────── -#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <style>{{ css }}</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<div class="report-header">
+  <div class="header-left">
+    <div class="brand">InfoBeans PPT Review Report</div>
+    <div class="subtitle">AI-powered agentic quality gate</div>
+  </div>
+  <div class="header-right">
+    <div class="date">{{ generated_at }}</div>
+    <div class="filename">{{ filename | e }}</div>
+  </div>
+</div>
+
+<!-- ── Score Banner ────────────────────────────────────────────────────────── -->
+<div class="score-banner">
+  <div class="score-circle {{ score_class }}">
+    <span class="pct">{{ score }}</span>
+    <span class="lbl">{{ score_label }}</span>
+  </div>
+  <div class="score-meta">
+    <h2>{{ filename | e }}</h2>
+    <p>
+      {{ agent_results | length }} agents ·
+      {{ completed_n }} completed ·
+      {{ failed_n }} failed ·
+      {{ all_findings | length }} finding{{ 's' if all_findings | length != 1 else '' }} ·
+      {{ critical_n }} critical · {{ high_n }} high
+    </p>
+  </div>
+</div>
+
+<!-- ── Status Pills ────────────────────────────────────────────────────────── -->
+<div class="pills">
+  {% for pill in pills %}
+    <span class="pill {{ pill.cls }}">{{ pill.icon }} {{ pill.label }}</span>
+  {% endfor %}
+</div>
+
+<!-- ── Agent Results Table ─────────────────────────────────────────────────── -->
+<div class="section-title">Agent Results</div>
+<div class="tbl-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Agent</th>
+        <th>Status</th>
+        <th>Score</th>
+        <th>Findings</th>
+        <th>Summary</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for agent in agent_results %}
+      <tr>
+        <td style="width:20%">
+          <strong>{{ agent.display_name | e }}</strong>
+          <span class="type-tag {{ agent.type }}" style="margin-left:4px">
+            {{ 'Rule' if agent.type == 'rule' else 'LLM' }}
+          </span>
+        </td>
+        <td style="width:12%">
+          <span class="badge {{ agent.status | e }}">{{ agent.status | e }}</span>
+        </td>
+        <td style="width:15%">
+          {% if agent.status == 'completed' %}
+            <div class="score-bar-wrap">
+              <span class="score-bar-bg">
+                <span class="score-bar-fill {{ agent.score_class }}" style="width:{{ agent.score }}%"></span>
+              </span>
+              <span class="score-num">{{ agent.score }}</span>
+            </div>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td style="width:10%;font-weight:700;color:{{ '#EA1B3D' if agent.findings_count else '#158158' }}">
+          {{ agent.findings_count }}
+        </td>
+        <td style="width:43%;text-align:left;vertical-align:top">
+          {{ agent.summary_html | safe }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Findings ────────────────────────────────────────────────────────────── -->
+<div class="section-title">Findings ({{ all_findings | length }})</div>
+
+{% if finding_groups %}
+  <div class="findings-list-pdf">
+    {% for slide_key, group_findings in finding_groups %}
+
+      <div class="slide-group-header-pdf">
+        <span class="slide-group-label-pdf">{{ slide_key | e }}</span>
+        <span class="slide-group-count-pdf">
+          {{ group_findings | length }} finding{{ 's' if group_findings | length != 1 else '' }}
+        </span>
+      </div>
+
+      {% for f in group_findings %}
+        <div class="finding-card-pdf severity-{{ f.severity | e }}">
+
+          <div class="finding-header-pdf">
+            <span class="badge {{ f.severity | e }}">{{ f.severity | e }}</span>
+            <span class="agent-tag-pdf">{{ f.agent_name | e }}</span>
+            <span class="badge {{ f.action_type | e }}" style="float:right">
+              {{ f.action_type_short | e }}
+            </span>
+          </div>
+
+          <div class="finding-title-pdf">{{ f.title | e }}</div>
+          <div class="finding-desc-pdf">{{ f.description | e }}</div>
+
+          {% if f.recommendation %}
+            <div class="finding-rec-pdf">
+              <div class="rec-label-pdf">💡 Recommendation</div>
+              <div>{{ f.recommendation_html | safe }}</div>
+            </div>
+          {% endif %}
+
+        </div>
+      {% endfor %}
+
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="no-findings">✓ No findings — deck passed all agent checks</div>
+{% endif %}
+
+<!-- ── Run Metadata ─────────────────────────────────────────────────────────── -->
+<div class="page-break"></div>
+<div class="section-title">Run Metadata</div>
+<div class="tbl-wrap">
+  <table>
+    <tbody>
+      <tr>
+        <td style="color:#676775;width:130px">Run ID</td>
+        <td style="font-family:monospace;font-size:8pt">{{ run_id | e }}</td>
+      </tr>
+      <tr>
+        <td style="color:#676775">File</td>
+        <td>{{ filename | e }}</td>
+      </tr>
+      <tr>
+        <td style="color:#676775">Started</td>
+        <td>{{ started_fmt | e }}</td>
+      </tr>
+      <tr>
+        <td style="color:#676775">Generated</td>
+        <td>{{ generated_at | e }}</td>
+      </tr>
+      <tr>
+        <td style="color:#676775">Agents run</td>
+        <td>{{ agent_results | length }}</td>
+      </tr>
+      <tr>
+        <td style="color:#676775">Total tokens</td>
+        <td>{{ "{:,}".format(total_tokens) }}</td>
+      </tr>
+      <tr>
+        <td style="color:#676775">Estimated cost</td>
+        <td>${{ "%.4f" | format(cost_usd) }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Footer ──────────────────────────────────────────────────────────────── -->
+<div class="report-footer">
+  Generated by <strong>InfoBeans</strong> Agentic PPT Review Platform ·
+  python-pptx · FastAPI · Claude AI
+</div>
+
+</body>
+</html>

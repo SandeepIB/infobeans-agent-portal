@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ app_name }}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="/static/portal.css">
+</head>
+<body>
+
+{% if user %}
+{# ── Authenticated: show portal ────────────────────────────────────────── #}
+<div id="portal">
+  <header>
+    <div class="brand"><span class="tile"><span class="lg" style="--w:104px" role="img" aria-label="InfoBeans"></span></span><span class="sub">Agent hub</span></div>
+    <div class="user">
+      <div class="who"><b id="uname">{{ user.display_name or user.email.split('@')[0] | title }}</b><small id="umail">{{ user.email }}</small></div>
+      <div class="av" id="uav" aria-hidden="true">{{ (user.display_name or user.email)[0] | upper }}</div>
+      {% if user.is_admin %}<a class="admin-link" href="/admin">Admin</a>{% endif %}
+      <form action="/logout" method="post" style="display:inline">
+        <button class="out" type="submit">Sign out</button>
+      </form>
+    </div>
+  </header>
+  <main>
+    <h1 id="hello">Welcome, {{ (user.display_name or user.email).split()[0] | title }}</h1>
+    <p>Pick an agent to get started.</p>
+    <input class="search" id="q" type="search" placeholder="Search agents" aria-label="Search agents">
+    <div class="grid" id="grid"></div>
+    <div class="empty hidden" id="empty">No agents match your search.</div>
+  </main>
+  <footer class="foot"><span>&copy; 2026 InfoBeans. All rights reserved.</span><b>Creating wow!</b></footer>
+</div>
+
+{% else %}
+{# ── Unauthenticated: show login ───────────────────────────────────────── #}
+<section id="login" class="login">
+  <div class="hero">
+    <div class="brand"><span class="tile big"><span class="lg" style="--w:150px" role="img" aria-label="InfoBeans"></span></span></div>
+    <div>
+      <h1>Your AI agents, one sign-in away.</h1>
+      <p>Sign in with your InfoBeans Google account to open the agent hub.</p>
+    </div>
+    <div class="chips"><span>Sign in to continue</span></div>
+  </div>
+  <div class="signin">
+    <div class="card">
+      <h2>Sign in</h2>
+      <p>Use your InfoBeans Google account to open the portal.</p>
+
+      {% if error %}
+      <div class="err" role="alert" style="margin-bottom:12px;padding:10px;border-radius:8px;background:#fee;border:1px solid #f99">
+        {% if error == 'not_authorised' %}Your account is not authorised. Contact your administrator.
+        {% elif error == 'account_inactive' %}Your account has been deactivated. Contact your administrator.
+        {% elif error == 'auth_failed' %}Authentication failed. Please try again.
+        {% elif error == 'state_mismatch' %}Security check failed. Please try again.
+        {% else %}Sign-in error. Please try again.
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <a class="gbtn" href="/auth/google/login" role="button">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+        Continue with Google
+      </a>
+
+      <p class="note">Access is restricted to authorised InfoBeans accounts.</p>
+    </div>
+  </div>
+  <footer class="foot"><span>&copy; 2026 InfoBeans. All rights reserved.</span><b>Creating wow!</b></footer>
+</section>
+{% endif %}
+
+<div class="toast hidden" id="toast" role="status"></div>
+
+<style>
+.admin-link{font-size:.8rem;color:var(--muted);text-decoration:none;margin-right:8px;padding:4px 10px;border:1px solid var(--line);border-radius:6px}
+.admin-link:hover{background:var(--line)}
+.gbtn{display:flex;align-items:center;gap:10px;justify-content:center;width:100%;padding:12px 20px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-size:1rem;font-weight:400;cursor:pointer;text-decoration:none;box-sizing:border-box}
+.gbtn:hover{background:var(--bg)}
+</style>
+
+{% if user %}
+<script>
+(function(){
+  var CURRENT_USER = {{ {"email": user.email, "name": user.display_name or user.email.split('@')[0], "is_admin": user.is_admin} | tojson }};
+  var appsData = [];
+
+  function toast(m){var t=document.getElementById("toast");t.textContent=m;t.classList.remove("hidden");clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.add("hidden")},2600)}
+
+  function render(list){
+    var g=document.getElementById("grid");
+    g.innerHTML="";
+    if(!list.length){document.getElementById("empty").classList.remove("hidden");return}
+    document.getElementById("empty").classList.add("hidden");
+    list.forEach(function(a){
+      var d=document.createElement("article");d.className="app";
+      d.innerHTML='<div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">'+
+        (a.icon_svg||'<circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/>')+
+        '</svg></div><h3></h3><p></p><button class="launch" type="button">Launch</button>';
+      d.querySelector("h3").textContent=a.name;
+      d.querySelector("p").textContent=a.description||"";
+      d.querySelector("button").onclick=function(){
+        if(a.route_path){window.open(a.route_path,"_blank","noopener")}
+        else{toast(a.name+" is not available yet.")}
+      };
+      g.appendChild(d);
+    });
+  }
+
+  fetch("/api/apps",{credentials:"same-origin"})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status)})
+    .then(function(apps){appsData=apps;render(apps)})
+    .catch(function(){toast("Failed to load applications. Please refresh.")});
+
+  document.getElementById("q").addEventListener("input",function(){
+    var s=this.value.toLowerCase();
+    render(appsData.filter(function(a){
+      return(a.name+" "+(a.description||"")).toLowerCase().indexOf(s)>-1;
+    }));
+  });
+})();
+</script>
+{% endif %}
+
+</body>
+</html>

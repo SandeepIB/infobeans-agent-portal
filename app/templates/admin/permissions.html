@@ -1,0 +1,76 @@
+{% extends "base_admin.html" %}
+{% block title %}Permissions{% endblock %}
+
+{% block content %}
+<div class="adm-header">
+  <h1>Permissions</h1>
+  <p>Grant or revoke application access</p>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 16px;font-size:1rem;font-weight:500">Grant Permission</h3>
+  <div style="display:flex;gap:12px;align-items:flex-end">
+    <div class="form-group" style="margin:0;flex:1">
+      <label>User</label>
+      <select id="grantUser">
+        <option value="">Select user…</option>
+        {% for u in users %}<option value="{{ u.id }}">{{ u.email }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;flex:1">
+      <label>Application</label>
+      <select id="grantApp">
+        <option value="">Select application…</option>
+        {% for app in apps %}<option value="{{ app.id }}">{{ app.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="grantPerm()">Grant</button>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 16px;font-size:1rem;font-weight:500">Current Permissions</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>User</th><th>Application</th><th>Granted</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="permTable">
+        {% for p in perms %}
+        <tr id="perm-{{ p.id }}">
+          <td>{{ p.user.email }}</td>
+          <td>{{ p.application.name }}</td>
+          <td style="font-size:.8rem;color:var(--muted)">{{ p.granted_at.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <button class="btn btn-danger" onclick="revokePerm({{ p.user_id }}, {{ p.app_id }}, this)">Revoke</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No permissions granted yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+
+
+{% block scripts %}
+<script>
+function grantPerm(){
+  var uid=document.getElementById("grantUser").value;
+  var appId=document.getElementById("grantApp").value;
+  if(!uid||!appId){toast("Select both user and application",false);return}
+  api("POST","/admin/api/permissions",{user_id:parseInt(uid),app_id:parseInt(appId)})
+    .then(()=>{toast("Permission granted");setTimeout(()=>location.reload(),800)})
+    .catch(e=>toast(e.message,false))
+}
+function revokePerm(uid,appId,btn){
+  if(!confirm("Revoke this permission?"))return;
+  api("DELETE","/admin/api/permissions",{user_id:uid,app_id:appId})
+    .then(()=>{toast("Permission revoked");btn.closest("tr").remove()})
+    .catch(e=>toast(e.message,false))
+}
+</script>
+{% endblock %}

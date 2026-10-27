@@ -1,0 +1,105 @@
+{% extends "base_admin.html" %}
+{% block title %}Applications{% endblock %}
+
+{% block content %}
+<div class="adm-header">
+  <h1>Applications</h1>
+  <p>Manage registered applications</p>
+</div>
+
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+  <button class="btn btn-primary" onclick="openAdd()">+ Add Application</button>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Slug</th><th>Route</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for app in apps %}
+        <tr>
+          <td><b>{{ app.name }}</b><br><small style="color:var(--muted)">{{ app.description or '' }}</small></td>
+          <td><code>{{ app.slug }}</code></td>
+          <td><code style="font-size:.8rem">{{ app.route_path or '—' }}</code></td>
+          <td>{% if app.is_active %}<span class="badge badge-green">Active</span>{% else %}<span class="badge badge-red">Inactive</span>{% endif %}</td>
+          <td>
+            <button class="btn" onclick="editApp({{ app.id }}, '{{ app.name }}', {{ app.description|tojson if app.description else 'null' }}, {{ app.route_path|tojson if app.route_path else 'null' }}, {{ 'true' if app.is_active else 'false' }})">Edit</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No applications yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="addModal">
+  <div class="modal">
+    <h3>Add Application</h3>
+    <div class="form-group"><label>Slug (unique identifier)</label><input type="text" id="addSlug" placeholder="ppt-validator"></div>
+    <div class="form-group"><label>Name</label><input type="text" id="addName" placeholder="PowerPoint Validator"></div>
+    <div class="form-group"><label>Description</label><input type="text" id="addDesc" placeholder="Short description"></div>
+    <div class="form-group"><label>Route Path</label><input type="text" id="addRoute" placeholder="/ppt-validator/"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAdd()">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="editModal">
+  <div class="modal">
+    <h3>Edit Application</h3>
+    <input type="hidden" id="editId">
+    <div class="form-group"><label>Name</label><input type="text" id="editName"></div>
+    <div class="form-group"><label>Description</label><input type="text" id="editDesc"></div>
+    <div class="form-group"><label>Route Path</label><input type="text" id="editRoute"></div>
+    <div class="form-group"><label><input type="checkbox" id="editActive"> Active</label></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEdit()">Save</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+
+{% block scripts %}
+<script>
+function closeModals(){document.querySelectorAll(".modal-overlay").forEach(m=>m.classList.add("hidden"))}
+function openAdd(){document.getElementById("addModal").classList.remove("hidden")}
+function editApp(id,name,desc,route,active){
+  document.getElementById("editId").value=id;
+  document.getElementById("editName").value=name;
+  document.getElementById("editDesc").value=desc||"";
+  document.getElementById("editRoute").value=route||"";
+  document.getElementById("editActive").checked=active;
+  document.getElementById("editModal").classList.remove("hidden");
+}
+function submitAdd(){
+  var slug=document.getElementById("addSlug").value.trim();
+  var name=document.getElementById("addName").value.trim();
+  var desc=document.getElementById("addDesc").value.trim();
+  var route=document.getElementById("addRoute").value.trim();
+  if(!slug||!name){toast("Slug and name required",false);return}
+  api("POST","/admin/api/apps",{slug,name,description:desc||null,route_path:route||null,is_active:true})
+    .then(()=>{toast("Application added");setTimeout(()=>location.reload(),800)})
+    .catch(e=>toast(e.message,false))
+}
+function submitEdit(){
+  var id=document.getElementById("editId").value;
+  api("PATCH","/admin/api/apps/"+id,{
+    name:document.getElementById("editName").value.trim(),
+    description:document.getElementById("editDesc").value.trim()||null,
+    route_path:document.getElementById("editRoute").value.trim()||null,
+    is_active:document.getElementById("editActive").checked
+  }).then(()=>{toast("Saved");setTimeout(()=>location.reload(),800)})
+    .catch(e=>toast(e.message,false))
+}
+document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",function(e){if(e.target===m)closeModals()}));
+</script>
+{% endblock %}

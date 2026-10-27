@@ -1,0 +1,45 @@
+{% extends "base_admin.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="adm-header">
+  <h1>Dashboard</h1>
+  <p>InfoBeans Agent Hub overview</p>
+</div>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="num">{{ user_count }}</div>
+    <div class="lbl">Total Users</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">{{ app_count }}</div>
+    <div class="lbl">Applications</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 16px;font-size:1rem;font-weight:500">Recent Activity</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Event</th><th>Actor</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        {% for ev in recent_events %}
+        <tr>
+          <td style="white-space:nowrap;color:var(--muted);font-size:.8rem">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') if ev.created_at else '—' }}</td>
+          <td><code style="font-size:.8rem">{{ ev.event_type }}</code></td>
+          <td style="font-size:.85rem">{{ ev.actor_email or '—' }}</td>
+          <td style="font-size:.8rem;color:var(--muted)">{{ ev.details[:80] if ev.details else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No events yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+

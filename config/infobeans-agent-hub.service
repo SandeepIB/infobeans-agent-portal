@@ -1,0 +1,35 @@
+[Unit]
+Description=InfoBeans Agent Hub (FastAPI)
+After=network.target mysql.service
+Requires=mysql.service
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/html/infobeans-agent-portal
+EnvironmentFile=/var/www/html/infobeans-agent-portal/.env
+ExecStart=/var/www/html/infobeans-agent-portal/.venv/bin/gunicorn \
+    app.main:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers 4 \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --keep-alive 5 \
+    --access-logfile /var/log/infobeans/hub-access.log \
+    --error-logfile  /var/log/infobeans/hub-error.log \
+    --log-level info
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ReadWritePaths=/var/log/infobeans
+
+[Install]
+WantedBy=multi-user.target

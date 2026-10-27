@@ -1,0 +1,31 @@
+[Unit]
+Description=InfoBeans PPT Validator (existing service)
+After=network.target mysql.service
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/html/Ib-ppt-validator
+# Adjust ExecStart to match the PPT validator's actual start command.
+# Examples:
+#   Node/npm:   ExecStart=/usr/bin/node /var/www/html/Ib-ppt-validator/server.js
+#   Gunicorn:   ExecStart=/var/www/html/Ib-ppt-validator/.venv/bin/gunicorn ...
+#   npm start:  ExecStart=/usr/bin/npm start
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# The hub proxies /ppt-validator/* → http://127.0.0.1:8080
+# Ensure the PPT validator binds to 127.0.0.1:8080
+Environment=PORT=8080
+Environment=HOST=127.0.0.1
+
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+[
+  {"type": "no_pii",           "value": "true", "rule_id": "security_no_pii"},
+  {"type": "no_credentials",   "value": "true", "rule_id": "security_no_creds"},
+  {"type": "no_internal_urls", "value": "true", "rule_id": "security_no_internal_urls"},
+  {"type": "no_client_data",   "value": "true", "rule_id": "security_no_client_data"}
+]
