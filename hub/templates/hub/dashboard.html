@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Agent Hub</title></head>
+<body>
+  <header>
+    Hi, {{ user.first_name|default:user.email }}
+    <form method="post" action="{% url 'accounts:logout' %}" style="display:inline">
+      {% csrf_token %}<button type="submit">Sign out</button>
+    </form>
+  </header>
+
+  <h1>Your apps</h1>
+  {% for app in apps %}
+    <a href="{% url 'hub:launch' app.slug %}">
+      <div>{{ app.icon }} <strong>{{ app.name }}</strong><p>{{ app.description }}</p></div>
+    </a>
+  {% empty %}
+    <p>You don't have access to any apps yet. Ask your administrator to grant access.</p>
+  {% endfor %}
+</body>
+</html>
