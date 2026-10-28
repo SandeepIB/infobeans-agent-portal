@@ -1,21 +1,70 @@
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Agent Hub</title></head>
-<body>
+{% extends "base.html" %}
+{% block body %}
+<div id="portal">
   <header>
-    Hi, {{ user.first_name|default:user.email }}
-    <form method="post" action="{% url 'accounts:logout' %}" style="display:inline">
-      {% csrf_token %}<button type="submit">Sign out</button>
-    </form>
+    <div class="brand">
+      <span class="tile"><span class="lg" style="--w:104px" role="img" aria-label="InfoBeans"></span></span>
+      <span class="sub">Agent hub</span>
+    </div>
+    <div class="user">
+      <div class="who"><b>{{ user.get_full_name|default:user.email }}</b><small>{{ user.email }}</small></div>
+      {% if user.avatar_url %}
+        <img class="av" src="{{ user.avatar_url }}" alt="" referrerpolicy="no-referrer">
+      {% else %}
+        <div class="av" aria-hidden="true">{{ user.first_name|default:user.email|first|upper }}</div>
+      {% endif %}
+      <form method="post" action="{% url 'accounts:logout' %}">
+        {% csrf_token %}<button class="out" type="submit">Sign out</button>
+      </form>
+    </div>
   </header>
 
-  <h1>Your apps</h1>
-  {% for app in apps %}
-    <a href="{% url 'hub:launch' app.slug %}">
-      <div>{{ app.icon }} <strong>{{ app.name }}</strong><p>{{ app.description }}</p></div>
-    </a>
-  {% empty %}
-    <p>You don't have access to any apps yet. Ask your administrator to grant access.</p>
-  {% endfor %}
-</body>
-</html>
+  <main>
+    <h1>Welcome, {{ user.first_name|default:"there" }}</h1>
+    {% if apps %}
+      <p>Pick an agent to get started.</p>
+      <input class="search" id="q" type="search" placeholder="Search agents" aria-label="Search agents">
+      <div class="grid" id="grid">
+        {% for app in apps %}
+        <article class="app{% if not app.launch_url %} soon{% endif %}"
+                 data-search="{{ app.name|lower }} {{ app.description|lower }}">
+          <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true">
+            {% if app.icon_svg %}{{ app.icon_svg|safe }}{% else %}<circle cx="12" cy="12" r="8"/>{% endif %}
+          </svg></div>
+          <h3>{{ app.name }}</h3>
+          <p>{{ app.description }}</p>
+          {% if app.launch_url %}
+            <a class="launch" href="{% url 'hub:launch' app.slug %}" target="_blank" rel="noopener">Launch</a>
+          {% else %}
+            <span class="launch">Coming soon</span>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+      <div class="empty hidden" id="empty">No agents match your search.</div>
+    {% else %}
+      <p class="empty">You don't have access to any agents yet. Ask your administrator to grant access.</p>
+    {% endif %}
+  </main>
+
+  {% include "partials/footer.html" %}
+</div>
+
+<script>
+// Client-side filter only. Access control already happened on the server.
+(function () {
+  var q = document.getElementById("q");
+  if (!q) return;
+  var cards = document.querySelectorAll("#grid .app");
+  q.addEventListener("input", function () {
+    var s = this.value.trim().toLowerCase(), shown = 0;
+    cards.forEach(function (c) {
+      var hit = c.dataset.search.indexOf(s) > -1;
+      c.classList.toggle("hidden", !hit);
+      if (hit) shown++;
+    });
+    document.getElementById("empty").classList.toggle("hidden", shown > 0);
+  });
+})();
+</script>
+{% endblock %}

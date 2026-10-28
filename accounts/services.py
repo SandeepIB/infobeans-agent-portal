@@ -33,7 +33,7 @@ def verify_google_credential(credential: str) -> GoogleIdentity:
     except ValueError as e:
         raise GoogleAuthError("Invalid Google credential") from e
 
-    if not info.get("email_verified"):
+    if not id_info.get("email_verified"):
         raise GoogleAuthError("Google email not verified")
 
     hd = id_info.get("hd")

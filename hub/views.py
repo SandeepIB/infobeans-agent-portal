@@ -14,6 +14,6 @@ def dashboard(request):
 @login_required
 def launch(request, slug):
     app = get_object_or_404(App, slug=slug, is_active=True)
-    if not app.is_accessible_by(request.user):
-        raise Http404  # don't reveal that the app exists
+    if not app.launch_url or not app.is_accessible_by(request.user):
+        raise Http404  # not to reveal that the app exists
     return redirect(app.launch_url)

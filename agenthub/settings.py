@@ -144,6 +144,12 @@ GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+CSRF_TRUSTED_ORIGINS = 'http://localhost:8000','https://agenthub.creatingwow.in'
+GOOGLE_ALLOWED_DOMAINS = os.getenv('GOOGLE_ALLOWED_DOMAINS', '').split(',')
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # -- Production hardening --
 if not DEBUG:
