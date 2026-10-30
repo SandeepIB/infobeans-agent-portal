@@ -1,0 +1,33 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a> ›
+  <a href="{% url 'admin:accounts_user_changelist' %}">Users</a> › Grant / revoke apps
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post">
+  {% csrf_token %}
+  <p>Applying to <strong>{{ users|length }}</strong> user(s):</p>
+  <ul>{% for u in users %}<li>{{ u.email }}</li>{% endfor %}</ul>
+
+  <fieldset class="module aligned">
+    <h2>Apps</h2>
+    <div class="form-row">{{ form.apps.errors }}{{ form.apps }}</div>
+    <h2>Mode</h2>
+    <div class="form-row">{{ form.mode }}</div>
+  </fieldset>
+
+  {% for u in users %}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ u.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="bulk_grant_apps">
+
+  <div class="submit-row">
+    <input type="submit" name="apply" value="Apply" class="default">
+    <a href="{% url 'admin:accounts_user_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}
