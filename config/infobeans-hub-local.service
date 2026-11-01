@@ -1,0 +1,65 @@
+# InfoBeans Agent Hub — systemd USER service (local development)
+#
+# Install (run once, no sudo needed):
+#   mkdir -p ~/.config/systemd/user
+#   ln -sf /var/www/html/infobeans-agent-portal/config/infobeans-hub-local.service \
+#           ~/.config/systemd/user/infobeans-hub-local.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now infobeans-hub-local.service
+#
+# Auto-start at boot (not just at login — run once):
+#   loginctl enable-linger $USER
+#
+# Useful commands:
+#   systemctl --user status  infobeans-hub-local     # check status
+#   systemctl --user restart infobeans-hub-local     # restart
+#   systemctl --user stop    infobeans-hub-local     # stop
+#   journalctl --user -u infobeans-hub-local -f      # follow logs
+#
+# Debug mode — override log level without editing this file:
+#   systemctl --user edit infobeans-hub-local
+#   (add under [Service]: Environment=LOG_LEVEL=debug)
+#   systemctl --user restart infobeans-hub-local
+
+[Unit]
+Description=InfoBeans Agent Hub — Local Dev (FastAPI/uvicorn)
+After=network.target
+
+[Service]
+Type=exec
+WorkingDirectory=/var/www/html/infobeans-agent-portal
+
+# Load app config from .env (DB URL, secret key, etc.)
+EnvironmentFile=/var/www/html/infobeans-agent-portal/.env
+
+# Override log level by setting LOG_LEVEL=debug in an override file
+Environment=LOG_LEVEL=info
+
+# Bind to 0.0.0.0 so the Docker nginx container (gateway 172.26.0.1) can reach this host.
+# The nginx proxy_pass is set to http://172.26.0.1:8000 — see config/nginx.conf.
+
+# Free port 8000 before starting (uvicorn --reload spawns children that can linger after a crash)
+ExecStartPre=-/bin/bash -c "fuser -k 8000/tcp 2>/dev/null; true"
+ExecStartPre=/var/www/html/infobeans-agent-portal/.venv/bin/alembic upgrade head
+ExecStart=/var/www/html/infobeans-agent-portal/.venv/bin/python -m uvicorn app.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --reload \
+    --log-level $LOG_LEVEL
+ExecReload=/bin/kill -s HUP $MAINPID
+
+# Kill all child processes (reload workers) when service stops, not just the main PID
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+Restart=on-failure
+RestartSec=5
+
+# Logs — readable with: journalctl --user -u infobeans-hub-local -f
+# Also written to /tmp/infobeans-hub.log for convenience
+StandardOutput=append:/tmp/infobeans-hub.log
+StandardError=append:/tmp/infobeans-hub.log
+
+[Install]
+WantedBy=default.target

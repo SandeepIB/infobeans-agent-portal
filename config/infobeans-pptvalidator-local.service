@@ -1,0 +1,54 @@
+# InfoBeans PPT Validator — systemd USER service (local development)
+#
+# Install (run once, no sudo needed):
+#   mkdir -p ~/.config/systemd/user
+#   ln -sf /var/www/html/infobeans-agent-portal/config/infobeans-pptvalidator-local.service \
+#           ~/.config/systemd/user/infobeans-pptvalidator-local.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now infobeans-pptvalidator-local.service
+#
+# Auto-start at boot (run once):
+#   loginctl enable-linger $USER
+#
+# Useful commands:
+#   systemctl --user status  infobeans-pptvalidator-local
+#   systemctl --user restart infobeans-pptvalidator-local
+#   systemctl --user stop    infobeans-pptvalidator-local
+#   journalctl --user -u infobeans-pptvalidator-local -f
+#
+# Debug mode override:
+#   systemctl --user edit infobeans-pptvalidator-local
+#   (add: Environment=LOG_LEVEL=debug)
+
+[Unit]
+Description=InfoBeans PPT Validator — Local Dev
+After=network.target
+
+[Service]
+Type=exec
+WorkingDirectory=/var/www/html/infobeans-agent-portal/apps/ppt_validator
+
+EnvironmentFile=/var/www/html/infobeans-agent-portal/apps/ppt_validator/.env
+Environment=LOG_LEVEL=info
+
+# Use miniconda python3 — system /usr/bin/python3 does not have uvicorn
+ExecStartPre=-/bin/bash -c "fuser -k 8001/tcp 2>/dev/null; true"
+ExecStart=/home/sandeepgupta/miniconda3/bin/python3 -m uvicorn app:app \
+    --host 0.0.0.0 \
+    --port 8001 \
+    --reload \
+    --log-level $LOG_LEVEL
+ExecReload=/bin/kill -s HUP $MAINPID
+
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+Restart=on-failure
+RestartSec=5
+
+StandardOutput=append:/tmp/infobeans-ppt.log
+StandardError=append:/tmp/infobeans-ppt.log
+
+[Install]
+WantedBy=default.target

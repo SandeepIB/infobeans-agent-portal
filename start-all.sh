@@ -5,10 +5,17 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+free_port() {
+  local pids
+  pids=$(lsof -ti :"$1" 2>/dev/null || true)
+  [[ -n "$pids" ]] && kill $pids 2>/dev/null || true && sleep 1
+}
+
 # ── PPT Validator (port 8001) ─────────────────────────────────────────────
 echo "[ppt-validator] Starting on :8001 ..."
+free_port 8001
 cd "$REPO/apps/ppt_validator"
-nohup python3 -m uvicorn app:app --host 127.0.0.1 --port 8001 \
+nohup python3 -m uvicorn app:app --host 0.0.0.0 --port 8001 \
   > /tmp/ppt-validator.log 2>&1 &
 PPT_PID=$!
 disown $PPT_PID
@@ -18,6 +25,7 @@ sleep 3
 
 # ── Agent Hub (port 8000) ─────────────────────────────────────────────────
 echo "[hub] Starting on :8000 ..."
+free_port 8000
 cd "$REPO"
 nohup .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 \
   > /tmp/hub.log 2>&1 &
