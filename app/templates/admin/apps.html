@@ -3,64 +3,96 @@
 
 {% block content %}
 <div class="adm-header">
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/admin">Admin</a>
+    <span class="breadcrumb-sep" aria-hidden="true">›</span>
+    <span aria-current="page">Applications</span>
+  </nav>
   <h1>Applications</h1>
-  <p>Manage registered applications</p>
+  <p>Manage registered applications and their routes</p>
 </div>
 
-<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
-  <button class="btn btn-primary" onclick="openAdd()">+ Add Application</button>
+<div class="page-actions">
+  <button class="btn btn-primary" onclick="openAdd()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    Add Application
+  </button>
 </div>
 
 <div class="card">
   <div class="table-wrap">
-    <table>
+    <table aria-label="Applications list">
       <thead>
-        <tr><th>Name</th><th>Slug</th><th>Route</th><th>Status</th><th>Actions</th></tr>
+        <tr>
+          <th>Name &amp; Description</th>
+          <th>Slug</th>
+          <th>Route</th>
+          <th class="col-status">Status</th>
+          <th class="col-actions">Actions</th>
+        </tr>
       </thead>
       <tbody>
         {% for app in apps %}
         <tr>
-          <td><b>{{ app.name }}</b><br><small style="color:var(--muted)">{{ app.description or '' }}</small></td>
-          <td><code>{{ app.slug }}</code></td>
-          <td><code style="font-size:.8rem">{{ app.route_path or '—' }}</code></td>
+          <td>
+            <span style="font-weight:400">{{ app.name }}</span>
+            {% if app.description %}<br><small style="color:var(--muted)">{{ app.description }}</small>{% endif %}
+          </td>
+          <td><code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:.82rem">{{ app.slug }}</code></td>
+          <td><code style="font-size:.82rem;color:var(--muted)">{{ app.route_path or '—' }}</code></td>
           <td>{% if app.is_active %}<span class="badge badge-green">Active</span>{% else %}<span class="badge badge-red">Inactive</span>{% endif %}</td>
           <td>
-            <button class="btn" onclick="editApp({{ app.id }}, '{{ app.name }}', {{ app.description|tojson if app.description else 'null' }}, {{ app.route_path|tojson if app.route_path else 'null' }}, {{ 'true' if app.is_active else 'false' }})">Edit</button>
+            <button class="btn btn-sm"
+              data-id="{{ app.id }}"
+              data-name="{{ app.name|e }}"
+              data-desc="{{ app.description|e if app.description else '' }}"
+              data-route="{{ app.route_path|e if app.route_path else '' }}"
+              data-active="{{ 'true' if app.is_active else 'false' }}"
+              onclick="editApp(this)">Edit</button>
+            <button class="btn btn-sm btn-danger" data-id="{{ app.id }}" data-name="{{ app.name|e }}" onclick="deleteApp(this)">Delete</button>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No applications yet.</td></tr>
+        <tr><td colspan="5"><div class="empty-state"><p>No applications yet. Add one to get started.</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
-<div class="modal-overlay hidden" id="addModal">
+<div class="modal-overlay hidden" id="addModal" role="dialog" aria-modal="true" aria-labelledby="addAppTitle">
   <div class="modal">
-    <h3>Add Application</h3>
-    <div class="form-group"><label>Slug (unique identifier)</label><input type="text" id="addSlug" placeholder="ppt-validator"></div>
-    <div class="form-group"><label>Name</label><input type="text" id="addName" placeholder="PowerPoint Validator"></div>
-    <div class="form-group"><label>Description</label><input type="text" id="addDesc" placeholder="Short description"></div>
-    <div class="form-group"><label>Route Path</label><input type="text" id="addRoute" placeholder="/ppt-validator/"></div>
+    <div class="modal-header">
+      <h3 id="addAppTitle">Add Application</h3>
+      <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    </div>
+    <div class="form-group"><label for="addSlug">Slug <span style="font-weight:300;opacity:.6">(unique identifier)</span></label><input type="text" id="addSlug" placeholder="ppt-validator" autocomplete="off"></div>
+    <div class="form-group"><label for="addName">Name</label><input type="text" id="addName" placeholder="PowerPoint Validator"></div>
+    <div class="form-group"><label for="addDesc">Description <span style="font-weight:300;opacity:.6">(optional)</span></label><input type="text" id="addDesc" placeholder="Short description"></div>
+    <div class="form-group"><label for="addRoute">Route Path <span style="font-weight:300;opacity:.6">(optional)</span></label><input type="text" id="addRoute" placeholder="/ppt-validator/"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="submitAdd()">Add</button>
+      <button class="btn btn-primary" onclick="submitAdd()">Add Application</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay hidden" id="editModal">
+<div class="modal-overlay hidden" id="editModal" role="dialog" aria-modal="true" aria-labelledby="editAppTitle">
   <div class="modal">
-    <h3>Edit Application</h3>
+    <div class="modal-header">
+      <h3 id="editAppTitle">Edit Application</h3>
+      <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    </div>
     <input type="hidden" id="editId">
-    <div class="form-group"><label>Name</label><input type="text" id="editName"></div>
-    <div class="form-group"><label>Description</label><input type="text" id="editDesc"></div>
-    <div class="form-group"><label>Route Path</label><input type="text" id="editRoute"></div>
-    <div class="form-group"><label><input type="checkbox" id="editActive"> Active</label></div>
+    <div class="form-group"><label for="editName">Name</label><input type="text" id="editName"></div>
+    <div class="form-group"><label for="editDesc">Description</label><input type="text" id="editDesc"></div>
+    <div class="form-group"><label for="editRoute">Route Path</label><input type="text" id="editRoute"></div>
+    <div class="form-group">
+      <label class="check-row"><span>Active</span><input type="checkbox" id="editActive"></label>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="submitEdit()">Save</button>
+      <button class="btn btn-primary" onclick="submitEdit()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -70,16 +102,23 @@
 
 {% block scripts %}
 <script>
-function closeModals(){document.querySelectorAll(".modal-overlay").forEach(m=>m.classList.add("hidden"))}
-function openAdd(){document.getElementById("addModal").classList.remove("hidden")}
-function editApp(id,name,desc,route,active){
-  document.getElementById("editId").value=id;
-  document.getElementById("editName").value=name;
-  document.getElementById("editDesc").value=desc||"";
-  document.getElementById("editRoute").value=route||"";
-  document.getElementById("editActive").checked=active;
+function openAdd(){
+  document.getElementById("addSlug").value="";
+  document.getElementById("addName").value="";
+  document.getElementById("addDesc").value="";
+  document.getElementById("addRoute").value="";
+  document.getElementById("addModal").classList.remove("hidden");
+}
+
+function editApp(btn){
+  document.getElementById("editId").value=btn.dataset.id;
+  document.getElementById("editName").value=btn.dataset.name;
+  document.getElementById("editDesc").value=btn.dataset.desc;
+  document.getElementById("editRoute").value=btn.dataset.route;
+  document.getElementById("editActive").checked=(btn.dataset.active==="true");
   document.getElementById("editModal").classList.remove("hidden");
 }
+
 function submitAdd(){
   var slug=document.getElementById("addSlug").value.trim();
   var name=document.getElementById("addName").value.trim();
@@ -90,16 +129,28 @@ function submitAdd(){
     .then(()=>{toast("Application added");setTimeout(()=>location.reload(),800)})
     .catch(e=>toast(e.message,false))
 }
+
 function submitEdit(){
   var id=document.getElementById("editId").value;
+  var name=document.getElementById("editName").value.trim();
+  if(!name){toast("Name is required",false);return}
   api("PATCH","/admin/api/apps/"+id,{
-    name:document.getElementById("editName").value.trim(),
+    name:name,
     description:document.getElementById("editDesc").value.trim()||null,
     route_path:document.getElementById("editRoute").value.trim()||null,
     is_active:document.getElementById("editActive").checked
-  }).then(()=>{toast("Saved");setTimeout(()=>location.reload(),800)})
+  }).then(()=>{toast("Application saved");setTimeout(()=>location.reload(),800)})
     .catch(e=>toast(e.message,false))
 }
-document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",function(e){if(e.target===m)closeModals()}));
+
+function deleteApp(btn){
+  var id=btn.dataset.id, name=btn.dataset.name;
+  if(!confirm("Delete application \""+name+"\"? This will also remove all user permissions for it."))return;
+  api("DELETE","/admin/api/apps/"+id)
+    .then(()=>{toast("Application deleted");setTimeout(()=>location.reload(),800)})
+    .catch(e=>toast(e.message,false))
+}
+
+/* modal overlay/escape handled globally in base_admin.html */
 </script>
 {% endblock %}

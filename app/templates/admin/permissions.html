@@ -3,50 +3,63 @@
 
 {% block content %}
 <div class="adm-header">
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/admin">Admin</a>
+    <span class="breadcrumb-sep" aria-hidden="true">›</span>
+    <span aria-current="page">Permissions</span>
+  </nav>
   <h1>Permissions</h1>
-  <p>Grant or revoke application access</p>
+  <p>Grant or revoke application access per user</p>
 </div>
 
 <div class="card" style="margin-bottom:20px">
-  <h3 style="margin:0 0 16px;font-size:1rem;font-weight:500">Grant Permission</h3>
-  <div style="display:flex;gap:12px;align-items:flex-end">
-    <div class="form-group" style="margin:0;flex:1">
-      <label>User</label>
+  <h2 class="card-title">Grant Permission</h2>
+  <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;flex:1;min-width:180px">
+      <label for="grantUser">User</label>
       <select id="grantUser">
         <option value="">Select user…</option>
         {% for u in users %}<option value="{{ u.id }}">{{ u.email }}</option>{% endfor %}
       </select>
     </div>
-    <div class="form-group" style="margin:0;flex:1">
-      <label>Application</label>
+    <div class="form-group" style="margin:0;flex:1;min-width:180px">
+      <label for="grantApp">Application</label>
       <select id="grantApp">
         <option value="">Select application…</option>
         {% for app in apps %}<option value="{{ app.id }}">{{ app.name }}</option>{% endfor %}
       </select>
     </div>
-    <button class="btn btn-primary" onclick="grantPerm()">Grant</button>
+    <button class="btn btn-primary" onclick="grantPerm()" style="margin-bottom:0;white-space:nowrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Grant Access
+    </button>
   </div>
 </div>
 
 <div class="card">
-  <h3 style="margin:0 0 16px;font-size:1rem;font-weight:500">Current Permissions</h3>
+  <h2 class="card-title">Current Permissions</h2>
   <div class="table-wrap">
-    <table>
+    <table aria-label="Current permissions list">
       <thead>
-        <tr><th>User</th><th>Application</th><th>Granted</th><th>Actions</th></tr>
+        <tr>
+          <th>User</th>
+          <th>Application</th>
+          <th class="col-date">Granted</th>
+          <th class="col-actions">Actions</th>
+        </tr>
       </thead>
       <tbody id="permTable">
         {% for p in perms %}
         <tr id="perm-{{ p.id }}">
           <td>{{ p.user.email }}</td>
           <td>{{ p.application.name }}</td>
-          <td style="font-size:.8rem;color:var(--muted)">{{ p.granted_at.strftime('%Y-%m-%d') }}</td>
+          <td style="color:var(--muted)">{{ p.granted_at.strftime('%Y-%m-%d') }}</td>
           <td>
-            <button class="btn btn-danger" onclick="revokePerm({{ p.user_id }}, {{ p.app_id }}, this)">Revoke</button>
+            <button class="btn btn-sm btn-danger" onclick="revokePerm({{ p.user_id }}, {{ p.app_id }}, this)">Revoke</button>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No permissions granted yet.</td></tr>
+        <tr><td colspan="4"><div class="empty-state"><p>No permissions granted yet. Use the form above to grant access.</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

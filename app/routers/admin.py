@@ -176,6 +176,30 @@ def update_user(
     return user
 
 
+@router.delete("/api/users/{user_id}", status_code=204)
+def delete_user(
+    user_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    from app.models.permission import UserAppPermission
+    from app.models.session import AppSession
+    db.query(UserAppPermission).filter(UserAppPermission.user_id == user_id).delete()
+    db.query(AppSession).filter(AppSession.user_id == user_id).delete()
+    audit_service.log_event(
+        db, "user_deleted",
+        actor_user_id=admin.id, actor_email=admin.email,
+        details={"email": user.email},
+    )
+    db.delete(user)
+    db.flush()
+
+
 @router.get("/api/users/{user_id}/permissions")
 def get_user_permissions(
     user_id: int,
@@ -237,6 +261,26 @@ def update_app(
         target_app_id=app.id,
     )
     return app
+
+
+@router.delete("/api/apps/{app_id}", status_code=204)
+def delete_app(
+    app_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    app = db.query(Application).filter(Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    from app.models.permission import UserAppPermission
+    db.query(UserAppPermission).filter(UserAppPermission.app_id == app_id).delete()
+    audit_service.log_event(
+        db, "app_deleted",
+        actor_user_id=admin.id, actor_email=admin.email,
+        details={"slug": app.slug, "name": app.name},
+    )
+    db.delete(app)
+    db.flush()
 
 
 # ── Permission management API ─────────────────────────────────────────────────

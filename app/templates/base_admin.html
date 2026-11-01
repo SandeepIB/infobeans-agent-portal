@@ -7,94 +7,191 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500&display=swap">
 <link rel="stylesheet" href="/static/portal.css">
 <style>
-:root{--side-w:220px}
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+:root{--side-w:240px}
+html,body{overflow-x:hidden;max-width:100vw}
 .adm{display:flex;min-height:100vh}
-.adm-side{width:var(--side-w);background:var(--side);color:var(--side-ink);padding:24px 0;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto}
-.adm-side .brand{padding:0 20px 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1)}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.adm-side{width:var(--side-w);background:var(--side);color:var(--side-ink);padding:24px 0;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+.adm-side .brand{padding:0 20px 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);text-decoration:none;color:inherit;transition:opacity .15s;cursor:pointer}
+.adm-side .brand:hover{opacity:.85}
 .adm-side .brand .lg{filter:brightness(0) invert(1)}
-.adm-side nav{padding:16px 0}
-.adm-side nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;color:rgba(255,255,255,.7);text-decoration:none;font-size:.9rem;transition:all .15s}
-.adm-side nav a:hover,.adm-side nav a.active{background:rgba(255,255,255,.1);color:#fff}
-.adm-side nav a svg{width:18px;height:18px;flex-shrink:0}
-.adm-side .out-link{padding:20px;border-top:1px solid rgba(255,255,255,.1);margin-top:auto}
-.adm-side .out-link a{color:rgba(255,255,255,.5);font-size:.85rem;text-decoration:none}
-.adm-main{flex:1;padding:32px;overflow-y:auto;background:var(--bg)}
-.adm-header{margin-bottom:28px}
-.adm-header h1{margin:0 0 4px;font-size:1.4rem;font-weight:500}
-.adm-header p{margin:0;color:var(--muted);font-size:.9rem}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px}
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:.9rem}
-th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:400;border-bottom:2px solid var(--line)}
-td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.adm-side nav{padding:16px 0;flex:1}
+.adm-side nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;color:rgba(255,255,255,.7);text-decoration:none;font-size:.875rem;transition:all .15s;border-left:3px solid transparent}
+.adm-side nav a:hover{background:rgba(255,255,255,.08);color:#fff;border-left-color:rgba(255,255,255,.3)}
+.adm-side nav a.active{background:rgba(255,255,255,.12);color:#fff;border-left-color:var(--accent)}
+.adm-side nav a svg{width:17px;height:17px;flex-shrink:0}
+.adm-side .side-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.1)}
+.adm-side .side-footer a{color:rgba(255,255,255,.5);font-size:.82rem;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.adm-side .side-footer a:hover{color:rgba(255,255,255,.8)}
+.adm-side .side-footer .user-email{display:block;font-size:.78rem;color:rgba(255,255,255,.35);margin-top:8px;word-break:break-all}
+
+/* ── Main ────────────────────────────────────────────────────────────────── */
+/* Override portal.css: main{max-width:1100px;margin:0 auto;padding:...} */
+.adm-main{flex:1;padding:28px 36px;overflow-y:auto;background:var(--bg);min-width:0;max-width:none;margin:0}
+
+/* ── Page header + breadcrumb ────────────────────────────────────────────── */
+.adm-header{margin-bottom:24px}
+.breadcrumb{display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--muted);margin-bottom:8px;flex-wrap:wrap}
+.breadcrumb a{color:var(--muted);text-decoration:none}
+.breadcrumb a:hover{color:var(--ink);text-decoration:underline}
+.breadcrumb-sep{opacity:.45;font-size:.9em;user-select:none}
+.breadcrumb [aria-current="page"]{color:var(--ink)}
+.adm-header h1{margin:0 0 3px;font-size:1.35rem;font-weight:500}
+.adm-header p{margin:0;color:var(--muted);font-size:.875rem}
+
+/* ── Page-level action bar ───────────────────────────────────────────────── */
+.page-actions{display:flex;justify-content:flex-end;margin-bottom:14px}
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+/* Override portal.css: .card{max-width:400px} */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 24px;width:100%;max-width:none}
+.card-title{margin:0 0 14px;font-size:.95rem;font-weight:500}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:.875rem}
+th{text-align:left;padding:9px 14px;color:var(--muted);font-weight:400;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--line);white-space:nowrap;overflow:hidden}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle;overflow:hidden}
 tr:last-child td{border-bottom:none}
-.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.75rem;font-weight:400}
+tbody tr:hover{background:rgba(0,0,0,.02)}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Fixed column widths — total should be ≤ table width */
+.col-email{width:210px}
+.col-name{width:150px}
+.col-role{width:80px}
+.col-status{width:88px}
+.col-date{width:110px}
+.col-actions{width:200px;text-align:right}
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.73rem;font-weight:400;white-space:nowrap}
 .badge-green{background:#d4f7e7;color:#1a7a4a}
 .badge-red{background:#fee;color:#b91c1c}
 .badge-grey{background:var(--line);color:var(--muted)}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:.85rem;cursor:pointer;font-family:inherit;text-decoration:none}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:.83rem;cursor:pointer;font-family:inherit;text-decoration:none;white-space:nowrap;transition:background .12s,opacity .12s}
 .btn:hover{background:var(--bg)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn+.btn{margin-left:6px}
 .btn-primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.btn-primary:hover{opacity:.9;background:var(--accent)}
-.btn-danger{background:#fee;color:#b91c1c;border-color:#f99}
-.btn-danger:hover{background:#fdd}
-.form-group{margin-bottom:16px}
-.form-group label{display:block;margin-bottom:6px;font-size:.85rem;color:var(--muted)}
-.form-group input,.form-group select{width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:7px;font:inherit;background:var(--surface);color:var(--ink)}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000}
-.modal{background:var(--surface);border-radius:12px;padding:28px;width:460px;max-width:95vw}
-.modal h3{margin:0 0 20px;font-size:1.1rem}
+.btn-primary:hover{opacity:.88;background:var(--accent)}
+.btn-danger{background:#fff1f1;color:#b91c1c;border-color:#fca5a5}
+.btn-danger:hover{background:#fee2e2}
+.btn-sm{padding:4px 10px;font-size:.78rem}
+.btn-icon{padding:6px;border-radius:6px}
+
+/* ── Forms ───────────────────────────────────────────────────────────────── */
+.form-group{margin-bottom:14px}
+.form-group label{display:block;margin-bottom:5px;font-size:.83rem;color:var(--muted)}
+.form-group input,.form-group select{width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:7px;font:inherit;background:var(--surface);color:var(--ink);transition:border-color .15s}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--accent)}
+/* Checkbox row: label text on left, checkbox on right */
+.check-row{display:flex!important;align-items:center;justify-content:space-between;padding:9px 12px;border:1px solid var(--line);border-radius:7px;cursor:pointer;margin-bottom:0!important}
+.check-row span{font-size:.83rem;color:var(--ink)}
+.check-row input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--accent);flex-shrink:0}
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.modal{background:var(--surface);border-radius:14px;padding:28px;width:480px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px}
+.modal-header h3{margin:0;font-size:1.05rem}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--muted);padding:2px;border-radius:5px;font-size:1.1rem;line-height:1;display:flex;align-items:center;justify-content:center}
+.modal-close:hover{color:var(--ink);background:var(--line)}
+.modal-close:focus-visible{outline:2px solid var(--accent)}
 .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
-.stats-row{display:flex;gap:16px;margin-bottom:24px}
-.stat-card{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px}
-.stat-card .num{font-size:2rem;font-weight:500;color:var(--accent)}
-.stat-card .lbl{font-size:.85rem;color:var(--muted)}
-.alert{padding:10px 14px;border-radius:7px;font-size:.9rem;margin-bottom:16px}
+
+/* ── Stat cards ──────────────────────────────────────────────────────────── */
+.stats-row{display:flex;gap:14px;margin-bottom:24px;flex-wrap:wrap}
+.stat-card{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.stat-card .num{font-size:1.9rem;font-weight:500;color:var(--accent);line-height:1.1}
+.stat-card .lbl{font-size:.82rem;color:var(--muted);margin-top:4px}
+
+/* ── Alerts ──────────────────────────────────────────────────────────────── */
+.alert{padding:10px 14px;border-radius:8px;font-size:.875rem;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .alert-success{background:#d4f7e7;color:#1a7a4a;border:1px solid #86e0b5}
-.alert-error{background:#fee;color:#b91c1c;border:1px solid #f99}
+.alert-error{background:#fee;color:#b91c1c;border:1px solid #fca5a5}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.empty-state{text-align:center;padding:36px 24px;color:var(--muted)}
+.empty-state p{margin:0;font-size:.9rem}
 </style>
 </head>
 <body>
 <div class="adm">
-  <aside class="adm-side">
-    <div class="brand">
-      <span class="lg" style="--w:90px" role="img" aria-label="InfoBeans"></span>
-      <span style="font-size:.75rem;color:rgba(255,255,255,.5);margin-top:2px">Admin</span>
-    </div>
-    <nav>
-      <a href="/admin" class="{% if active=='dashboard' %}active{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+  <aside class="adm-side" aria-label="Admin navigation">
+    <a class="brand" href="/" title="Back to Hub" aria-label="InfoBeans Agent Hub home">
+      <span class="lg" style="--w:96px" role="img" aria-label="InfoBeans"></span>
+    </a>
+
+    <nav aria-label="Admin sections">
+      <a href="/admin" class="{% if active=='dashboard' %}active{% endif %}" {% if active=='dashboard' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         Dashboard
       </a>
-      <a href="/admin/users" class="{% if active=='users' %}active{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.87"/></svg>
+      <a href="/admin/users" class="{% if active=='users' %}active{% endif %}" {% if active=='users' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.87"/></svg>
         Users
       </a>
-      <a href="/admin/apps" class="{% if active=='apps' %}active{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      <a href="/admin/apps" class="{% if active=='apps' %}active{% endif %}" {% if active=='apps' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
         Applications
       </a>
-      <a href="/admin/permissions" class="{% if active=='permissions' %}active{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      <a href="/admin/permissions" class="{% if active=='permissions' %}active{% endif %}" {% if active=='permissions' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
         Permissions
       </a>
     </nav>
-    <div class="out-link" style="margin-top:auto;padding-top:16px">
-      <a href="/">← Back to Hub</a><br><br>
-      <span style="font-size:.8rem;color:rgba(255,255,255,.4)">{{ user.email }}</span>
+
+    <div class="side-footer">
+      <a href="/">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Back to Hub
+      </a>
+      <span class="user-email" title="{{ user.email }}">{{ user.email }}</span>
     </div>
   </aside>
-  <main class="adm-main">
+
+  <main class="adm-main" id="main-content">
     {% block content %}{% endblock %}
   </main>
 </div>
-<div id="toast" class="toast hidden" role="status"></div>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
 <script>
-function toast(m,ok){var t=document.getElementById("toast");t.textContent=m;t.style.background=ok===false?"#b91c1c":undefined;t.classList.remove("hidden");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.add("hidden"),3000)}
+function toast(m,ok){
+  var t=document.getElementById("toast");
+  t.textContent=m;
+  t.style.background=ok===false?"#b91c1c":undefined;
+  t.classList.remove("hidden");
+  clearTimeout(toast._t);
+  toast._t=setTimeout(()=>t.classList.add("hidden"),3200);
+}
+
 function api(method,url,body){
   return fetch(url,{method,credentials:"same-origin",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined})
-    .then(r=>r.ok?r.json():r.json().then(e=>{throw new Error(e.detail||"Error")}))
+    .then(r=>{
+      if(r.ok) return r.status===204?null:r.json();
+      return r.json().then(e=>{throw new Error(e.detail||"Error")});
+    });
 }
+
+function closeModals(){
+  document.querySelectorAll(".modal-overlay").forEach(m=>m.classList.add("hidden"));
+}
+
+/* Close modal on overlay click */
+document.addEventListener("click",function(e){
+  if(e.target.classList.contains("modal-overlay")) closeModals();
+});
+
+/* Close modal on Escape key */
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape") closeModals();
+});
 </script>
 {% block scripts %}{% endblock %}
 </body>
