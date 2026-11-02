@@ -1,19 +1,65 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
+from django.views.decorators.http import require_POST
 
-from .models import App
+from . import services
+from .forms import AccessRequestForm
+from .models import AccessRequest, App, LaunchEvent
+
+DASHBOARD_FIELDS = ("name", "slug", "description", "launch_url", "icon_svg", "display_order")
+
 
 
 @login_required
 def dashboard(request):
-    apps = App.objects.accessible_by(request.user)
-    return render(request, "hub/dashboard.html", {"apps": apps})
-
+    apps = App.objects.accessible_by(request.user).only(*DASHBOARD_FIELDS)
+    request_form = AccessRequestForm(user=request.user)
+    pending = (
+        AccessRequest.objects.filter(user=request.user, status=AccessRequest.Status.PENDING)
+        .select_related("app")
+    )
+    return render(request, "hub/dashboard.html", {
+        "apps": apps,
+        "request_form": request_form,
+        "can_request": request_form.fields["app"].queryset.exists(),
+        "pending_requests": pending,
+    })
 
 @login_required
 def launch(request, slug):
-    app = get_object_or_404(App, slug=slug, is_active=True)
-    if not app.launch_url or not app.is_accessible_by(request.user):
-        raise Http404  # not to reveal that the app exists
+    app = (
+        App.objects.accessible_by(request.user)
+        .filter(slug=slug)
+        .only("id", "launch_url")
+        .first()
+    )
+    if app is None or not app.launch_url:
+        raise Http404
+    LaunchEvent.objects.create(user=request.user, app=app)
     return redirect(app.launch_url)
+
+
+@login_required
+@require_POST
+def request_access(request):
+    form = AccessRequestForm(request.POST, user=request.user)
+    if not form.is_valid():
+        messages.error(request, "Please pick an agent you don't already have or haven't requested.")
+        return redirect("hub:dashboard")
+    try:
+        req = services.create_request(request.user, form.cleaned_data["app"], form.cleaned_data["reason"])
+    except services.AccessRequestError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"Request sent for {req.app.name}. An administrator will review it.")
+    return redirect("hub:dashboard")
+
+
+@login_required
+@require_POST
+def cancel_request(request, pk):
+    if services.cancel_request(request.user, pk):
+        messages.info(request, "Request withdrawn.")
+    return redirect("hub:dashboard")

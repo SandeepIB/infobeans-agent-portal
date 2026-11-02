@@ -19,11 +19,25 @@
     </div>
   </header>
 
-  <main>
+   <main>
     <h1>Welcome, {{ user.first_name|default:"there" }}</h1>
+
+    {% for message in messages %}
+      <div class="flash {{ message.tags }}" role="status">{{ message }}</div>
+    {% endfor %}
+
+    {% if apps %}<p>Pick an agent to get started.</p>{% endif %}
+
+    <div class="toolbar">
+      {% if apps %}
+        <input class="search" id="q" type="search" placeholder="Search agents" aria-label="Search agents">
+      {% endif %}
+      {% if can_request %}
+        <button type="button" class="req-btn" id="reqOpen">Request access</button>
+      {% endif %}
+    </div>
+
     {% if apps %}
-      <p>Pick an agent to get started.</p>
-      <input class="search" id="q" type="search" placeholder="Search agents" aria-label="Search agents">
       <div class="grid" id="grid">
         {% for app in apps %}
         <article class="app{% if not app.launch_url %} soon{% endif %}"
@@ -43,9 +57,46 @@
       </div>
       <div class="empty hidden" id="empty">No agents match your search.</div>
     {% else %}
-      <p class="empty">You don't have access to any agents yet. Ask your administrator to grant access.</p>
+      <p class="empty">
+        You don't have access to any agents yet.
+        {% if can_request %}Use <b>Request access</b> to ask for one.{% endif %}
+      </p>
+    {% endif %}
+
+    {% if pending_requests %}
+    <section class="pending" aria-labelledby="pendingTitle">
+      <h2 id="pendingTitle">Pending requests</h2>
+      <ul>
+        {% for r in pending_requests %}
+        <li>
+          <span><b>{{ r.app.name }}</b> · requested {{ r.created_at|timesince }} ago</span>
+          <form method="post" action="{% url 'hub:cancel_request' r.pk %}">
+            {% csrf_token %}<button type="submit" class="link-btn">Withdraw</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
     {% endif %}
   </main>
+
+  {% if can_request %}
+  <dialog id="reqDialog" class="req-dialog" aria-labelledby="reqTitle">
+    <form method="post" action="{% url 'hub:request_access' %}">
+      {% csrf_token %}
+      <h2 id="reqTitle">Request access</h2>
+      <p>Choose an agent. An administrator will review your request.</p>
+      <label for="{{ request_form.app.id_for_label }}">{{ request_form.app.label }}</label>
+      {{ request_form.app }}
+      <label for="{{ request_form.reason.id_for_label }}">{{ request_form.reason.label }}</label>
+      {{ request_form.reason }}
+      <div class="dlg-actions">
+        <button type="button" class="out" id="reqCancel">Cancel</button>
+        <button type="submit" class="launch">Send request</button>
+      </div>
+    </form>
+  </dialog>
+  {% endif %}
 
   {% include "partials/footer.html" %}
 </div>
@@ -65,6 +116,13 @@
     });
     document.getElementById("empty").classList.toggle("hidden", shown > 0);
   });
+})();
+// Request-access dialog box
+(function () {
+  var dlg = document.getElementById("reqDialog");
+  if (!dlg) return;
+  document.getElementById("reqOpen").addEventListener("click", function () { dlg.showModal(); });
+  document.getElementById("reqCancel").addEventListener("click", function () { dlg.close(); });
 })();
 </script>
 {% endblock %}

@@ -84,15 +84,18 @@ class UserAdmin(BaseUserAdmin):
         count = obj._app_count
         if not count:
             return "0"
-        url = reverse("admin:hub_app_changelist") + f"?allowed_users__id__exact={obj.pk}"
+        url = reverse("admin:hub_appgrant_changelist") + f"?user__id__exact={obj.pk}"
         return format_html('<a href="{}">{}</a>', url, count)
 
     # --- save the multi-select (runs after the user and its M2Ms are saved) ---
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
-        if "apps" in form.cleaned_data:  # absent on the "add user" form
-            form.instance.granted_apps.set(form.cleaned_data["apps"])
-
+        if "apps" in form.cleaned_data:
+            form.instance.granted_apps.set(
+                form.cleaned_data["apps"],
+                through_defaults={"granted_by": request.user},
+            )
+    
     # --- bonus: bulk action on the user list ---
     @admin.action(description="Grant / revoke apps for selected users")
     def bulk_grant_apps(self, request, queryset):
@@ -102,11 +105,11 @@ class UserAdmin(BaseUserAdmin):
                 apps, mode = form.cleaned_data["apps"], form.cleaned_data["mode"]
                 for user in queryset:
                     if mode == BulkGrantForm.MODE_REPLACE:
-                        user.granted_apps.set(apps)
+                        user.granted_apps.set(apps, through_defaults={"granted_by": request.user})
                     elif mode == BulkGrantForm.MODE_REMOVE:
                         user.granted_apps.remove(*apps)
                     else:
-                        user.granted_apps.add(*apps)
+                        user.granted_apps.add(*apps, through_defaults={"granted_by": request.user})
                 self.message_user(
                     request,
                     f"{mode.title()}: {apps.count()} app(s) for {queryset.count()} user(s).",

@@ -65,3 +65,28 @@ main>p{margin:0 0 24px;color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 20px;border-radius:10px;font-size:.9rem;max-width:90vw;z-index:20}
 @media(max-width:800px){.login{grid-template-columns:1fr}.hero{padding:32px 24px}header{padding:12px 16px}.who{display:none}}
 @media(prefers-reduced-motion:no-preference){.card{animation:in .4s ease both}@keyframes in{from{opacity:0;transform:translateY(8px)}}}
+.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:28px}
+.toolbar .search{margin-bottom:0;flex:1 1 260px}
+.req-btn{padding:11px 18px;border:1px solid var(--brand);border-radius:10px;background:none;color:var(--brand);font-weight:400}
+.req-btn:hover{background:var(--brand);color:#fff}
+button.launch{border:0;cursor:pointer}
+
+.req-dialog{border:1px solid var(--line);border-radius:16px;padding:28px;width:min(440px,calc(100vw - 32px));background:var(--surface);color:var(--ink)}
+.req-dialog::backdrop{background:rgba(0,0,0,.45)}
+.req-dialog h2{margin:0 0 6px;font-weight:300}
+.req-dialog p{margin:0 0 18px;color:var(--muted)}
+.req-dialog label{display:block;font-size:.9rem;margin:14px 0 6px}
+.req-dialog select,.req-dialog textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+.dlg-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+
+.pending{margin-top:40px}
+.pending h2{font-size:1.1rem;font-weight:400;margin:0 0 12px}
+.pending ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pending li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.pending form{margin:0}
+.link-btn{background:none;border:0;padding:0;color:var(--brand);font:inherit;cursor:pointer}
+
+.flash{padding:12px 16px;border-radius:10px;margin:0 0 20px;background:var(--surface);border:1px solid var(--line);border-left-width:4px}
+.flash.success{border-left-color:#2e7d32}
+.flash.error{border-left-color:var(--brand)}
+.flash.info{border-left-color:var(--muted)}

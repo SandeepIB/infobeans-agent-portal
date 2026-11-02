@@ -150,6 +150,8 @@ CSRF_TRUSTED_ORIGINS = 'http://localhost:8000','https://agenthub.creatingwow.in'
 GOOGLE_ALLOWED_DOMAINS = os.getenv('GOOGLE_ALLOWED_DOMAINS', '').split(',')
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# When False, superusers only see apps explicitly granted to them (or their groups).
+HUB_SUPERUSER_SEES_ALL = False
 
 # -- Production hardening --
 if not DEBUG:
