@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.models import AuditEvent, User  # noqa: F401 — registers models
-from app.routers import admin, api, auth, ppt_validator
+from app.routers import admin, api, auth, case_study, ppt_validator
 from app.security.dependencies import get_current_user_optional
 
 logging.basicConfig(
@@ -30,6 +30,16 @@ templates = Jinja2Templates(directory=str(TMPL_DIR))
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("InfoBeans Agent Hub starting up")
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        case_study.seed_application(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Startup seed failed")
+    finally:
+        db.close()
     yield
     logger.info("InfoBeans Agent Hub shutting down")
 
@@ -83,6 +93,7 @@ app.include_router(auth.router)
 app.include_router(api.router)
 app.include_router(admin.router)
 app.include_router(ppt_validator.router)
+app.include_router(case_study.router)
 
 
 # ── Portal home page ──────────────────────────────────────────────────────────

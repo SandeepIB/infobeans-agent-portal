@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Case Study Creator — InfoBeans Agent Hub</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="/static/portal.css">
+<style>
+/* ── Layout ─────────────────────────────────────────────── */
+.cs-layout{display:flex;gap:0;min-height:calc(100vh - 72px)}
+.cs-form-col{width:420px;flex-shrink:0;padding:28px 28px 28px 0;overflow-y:auto;position:sticky;top:72px;max-height:calc(100vh - 72px)}
+.cs-preview-col{flex:1;padding:28px 0 28px 28px;border-left:1px solid var(--line)}
+
+/* ── Form ───────────────────────────────────────────────── */
+.form-section{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:16px}
+.form-section h3{margin:0 0 16px;font-size:.95rem;font-weight:500;color:var(--ink)}
+.fld{margin-bottom:12px}
+.fld label{display:block;margin-bottom:4px;font-size:.8rem;color:var(--muted);font-weight:400}
+.fld input,.fld textarea{width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--bg);color:var(--ink);transition:border-color .15s;box-sizing:border-box;resize:vertical}
+.fld textarea{min-height:70px}
+.fld input:focus,.fld textarea:focus{outline:none;border-color:var(--accent)}
+.btn-gen{width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:var(--accent-ink);font:500 .9rem/1 inherit;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-gen:hover{opacity:.88}
+.btn-gen:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Preview panel ───────────────────────────────────────── */
+.preview-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:340px;color:var(--muted);border:2px dashed var(--line);border-radius:14px;text-align:center;padding:24px}
+.preview-placeholder svg{opacity:.25;margin-bottom:16px}
+.preview-placeholder p{margin:0;font-size:.9rem}
+
+.cs-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px;margin-bottom:16px}
+.cs-card h2{margin:0 0 4px;font-size:1.1rem;font-weight:500}
+.cs-card .eyebrow{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:14px}
+.cs-card p{margin:0;font-size:.88rem;line-height:1.65;color:var(--ink)}
+.cs-card ul{margin:0;padding-left:18px;font-size:.88rem;line-height:1.65;color:var(--ink)}
+.cs-card ul li{margin-bottom:4px}
+
+.tech-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.tech-pill{padding:4px 12px;background:var(--bg);border:1px solid var(--line);border-radius:20px;font-size:.78rem;color:var(--ink)}
+
+.impact-box{background:#f0f9f4;border:1px solid #86e0b5;border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.impact-box .headline{font-weight:500;color:#1a7a4a;font-size:.9rem;margin-bottom:8px}
+
+/* ── PPT download bar ─────────────────────────────────────── */
+.ppt-bar{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+.ppt-bar p{margin:0;font-size:.85rem;color:var(--muted)}
+.btn-ppt{padding:10px 22px;border-radius:9px;border:none;background:#214837;color:#fff;font:500 .88rem/1 inherit;cursor:pointer;transition:opacity .15s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.btn-ppt:hover{opacity:.88}
+.btn-ppt:disabled{opacity:.45;cursor:not-allowed}
+
+/* ── Spinner ───────────────────────────────────────────────── */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0}
+
+/* ── Toast ──────────────────────────────────────────────────── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#373742;color:#fff;padding:10px 22px;border-radius:24px;font-size:.85rem;z-index:999;transition:opacity .25s}
+.toast.hidden{opacity:0;pointer-events:none}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media(max-width:860px){
+  .cs-layout{flex-direction:column}
+  .cs-form-col{width:100%;position:static;max-height:none;padding:0 0 24px}
+  .cs-preview-col{padding:0;border-left:none;border-top:1px solid var(--line)}
+}
+
+/* ── Back link ─────────────────────────────────────────────── */
+.back-link{display:inline-flex;align-items:center;gap:5px;font-size:.82rem;color:var(--muted);text-decoration:none;margin-bottom:18px}
+.back-link:hover{color:var(--ink)}
+</style>
+</head>
+<body>
+<main style="max-width:1200px;margin:0 auto;padding:28px 24px 64px">
+  <a class="back-link" href="/">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    Back to Hub
+  </a>
+  <h1 style="margin:0 0 4px;font-size:1.4rem;font-weight:500">Case Study Creator</h1>
+  <p style="margin:0 0 24px;color:var(--muted);font-size:.88rem">Describe your project and let AI build a polished case study + InfoBeans-branded PowerPoint.</p>
+
+  <div class="cs-layout">
+    <!-- ── Form column ── -->
+    <div class="cs-form-col">
+      <div class="form-section">
+        <h3>Project Details</h3>
+        <div class="fld"><label>Project Name *</label><input id="f-project" type="text" placeholder="e.g. AI-Powered Claims Processing"></div>
+        <div class="fld"><label>Client / Industry *</label><input id="f-client" type="text" placeholder="e.g. HDFC Life Insurance"></div>
+        <div class="fld"><label>Project Overview *</label><textarea id="f-overview" placeholder="Brief summary of the engagement and goals..."></textarea></div>
+        <div class="fld"><label>Business Challenges</label><textarea id="f-challenges" placeholder="Key pain-points the client faced..."></textarea></div>
+        <div class="fld"><label>Solution Delivered</label><textarea id="f-solution" placeholder="What did InfoBeans build or implement?"></textarea></div>
+        <div class="fld"><label>Technologies Used</label><input id="f-tech" type="text" placeholder="React, FastAPI, PostgreSQL, Azure OpenAI…"></div>
+        <div class="fld"><label>Business Impact / Results</label><textarea id="f-impact" placeholder="Quantifiable outcomes, improvements, savings..."></textarea></div>
+      </div>
+      <button class="btn-gen" id="btnGenerate" onclick="generate()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+        Generate Case Study
+      </button>
+    </div>
+
+    <!-- ── Preview column ── -->
+    <div class="cs-preview-col" id="previewCol">
+      <div class="preview-placeholder" id="placeholder">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <p>Fill in the project details and click<br><strong>Generate Case Study</strong></p>
+      </div>
+      <div id="preview" class="hidden"></div>
+    </div>
+  </div>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+var _cs = null;
+
+function toast(msg, ok) {
+  var t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.background = ok === false ? "#b91c1c" : "#373742";
+  t.classList.remove("hidden");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function(){ t.classList.add("hidden"); }, 3400);
+}
+
+function val(id) { return document.getElementById(id).value.trim(); }
+
+async function generate() {
+  var project = val("f-project"), client = val("f-client"), overview = val("f-overview");
+  if (!project || !client || !overview) { toast("Project name, client, and overview are required.", false); return; }
+  var btn = document.getElementById("btnGenerate");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generating…';
+  try {
+    var resp = await fetch("/case-study/api/generate", {
+      method: "POST", credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        project_name: project, client_industry: client,
+        overview: overview,
+        challenges: val("f-challenges"),
+        solution: val("f-solution"),
+        technologies: val("f-tech"),
+        impact: val("f-impact")
+      })
+    });
+    if (!resp.ok) { var e = await resp.json(); throw new Error(e.detail || "LLM error"); }
+    _cs = await resp.json();
+    renderPreview(project, client, _cs);
+    toast("Case study generated!");
+  } catch(err) {
+    toast(err.message || "Generation failed.", false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg> Generate Case Study';
+  }
+}
+
+function renderPreview(project, client, cs) {
+  document.getElementById("placeholder").classList.add("hidden");
+  var p = document.getElementById("preview");
+  p.classList.remove("hidden");
+
+  var techHtml = (cs.technology_stack || []).map(function(t){ return '<span class="tech-pill">'+esc(t)+'</span>'; }).join("");
+  var metricsHtml = (cs.results && cs.results.metrics || []).map(function(m){ return '<li>'+esc(m)+'</li>'; }).join("");
+  var challengesHtml = (cs.business_challenges || []).map(function(c){ return '<li>'+esc(c)+'</li>'; }).join("");
+  var solPts = (cs.solution && cs.solution.key_points || []).map(function(k){ return '<li>'+esc(k)+'</li>'; }).join("");
+
+  p.innerHTML =
+    '<div class="ppt-bar">' +
+      '<p>Preview looks good? Export it as an InfoBeans-branded PowerPoint.</p>' +
+      '<button class="btn-ppt" id="btnPpt" onclick="downloadPpt()">'+
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>'+
+        'Download PPT'+
+      '</button>'+
+    '</div>'+
+
+    '<div class="cs-card" style="border-left:4px solid #EA1B3D">'+
+      '<div class="eyebrow">Case Study</div>'+
+      '<h2 style="font-size:1.3rem;margin-bottom:4px">'+esc(project)+'</h2>'+
+      '<p style="color:var(--muted);font-size:.82rem;margin-bottom:14px">'+esc(client)+'</p>'+
+      '<p>'+esc(cs.executive_summary || "")+'</p>'+
+    '</div>'+
+
+    '<div class="cs-card">'+
+      '<div class="eyebrow">Business Challenges</div>'+
+      '<ul>'+challengesHtml+'</ul>'+
+    '</div>'+
+
+    '<div class="cs-card">'+
+      '<div class="eyebrow">Solution Implemented</div>'+
+      (cs.solution && cs.solution.overview ? '<p style="margin-bottom:10px">'+esc(cs.solution.overview)+'</p>' : '')+
+      '<ul>'+solPts+'</ul>'+
+    '</div>'+
+
+    '<div class="cs-card">'+
+      '<div class="eyebrow">Technology Stack</div>'+
+      '<div class="tech-list">'+techHtml+'</div>'+
+    '</div>'+
+
+    '<div class="cs-card">'+
+      '<div class="eyebrow">Results &amp; Impact</div>'+
+      '<div class="impact-box"><div class="headline">'+esc((cs.results && cs.results.headline) || "")+'</div></div>'+
+      '<ul>'+metricsHtml+'</ul>'+
+    '</div>';
+}
+
+async function downloadPpt() {
+  if (!_cs) return;
+  var btn = document.getElementById("btnPpt");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Building…';
+  try {
+    var resp = await fetch("/case-study/api/generate-ppt", {
+      method: "POST", credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        project_name: val("f-project"),
+        client_industry: val("f-client"),
+        case_study: _cs
+      })
+    });
+    if (!resp.ok) { var e = await resp.json(); throw new Error(e.detail || "PPT error"); }
+    var blob = await resp.blob();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var name = (val("f-project") || "case-study").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 40);
+    a.href = url; a.download = "case-study-" + name + ".pptx"; a.click();
+    URL.revokeObjectURL(url);
+    toast("PowerPoint downloaded!");
+  } catch(err) {
+    toast(err.message || "PPT generation failed.", false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Download PPT';
+  }
+}
+
+function esc(s) {
+  return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>
