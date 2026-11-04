@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.db import models
-from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
+from django.db.models import Exists, F, Func, IntegerField, OuterRef, Q, Subquery
 
 
 # ---------------------------------------------------------------- App
@@ -11,18 +11,26 @@ class AppQuerySet(models.QuerySet):
         return self.filter(is_active=True)
 
     def accessible_by(self, user):
-        """Active apps the user may see: a current direct grant OR a group grant."""
         if not user.is_authenticated or not user.is_active:
             return self.none()
         if user.is_superuser and getattr(settings, "HUB_SUPERUSER_SEES_ALL", False):
             return self.active()
+        return self.active().filter(access_condition(user))
 
-        direct = AppGrant.objects.current().filter(app=OuterRef("pk"), user=user)
-        via_group = self.model.allowed_groups.through.objects.filter(
-            app=OuterRef("pk"), group__in=user.groups.all()
+    def count_accessible_subquery(self):
+        """
+        Per-user count of accessible apps, for annotating a User queryset:
+            User.objects.annotate(n=App.objects.count_accessible_subquery())
+        """
+        user_ref = OuterRef(OuterRef("pk"))  # User is two levels up: User → App → grant
+        counted = (
+            self.active()
+            .filter(access_condition(user_ref))
+            .order_by()  # drop App's default ordering inside the subquery
+            .annotate(n=Func(F("pk"), function="COUNT", output_field=IntegerField()))
+            .values("n")
         )
-        return self.active().filter(Exists(direct) | Exists(via_group))
-
+        return Subquery(counted, output_field=IntegerField())
 
 class App(models.Model):
     name = models.CharField(max_length=120)
@@ -143,3 +151,13 @@ class AccessRequest(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} → {self.app} ({self.get_status_display()})"
+
+
+def access_condition(user_ref):
+    """
+    THE access rule: a current direct grant OR membership of a granted group.
+    `user_ref` is a User instance, or an OuterRef when used inside a subquery.
+    """
+    direct = AppGrant.objects.current().filter(app=OuterRef("pk"), user=user_ref)
+    via_group = App.allowed_groups.through.objects.filter(app=OuterRef("pk"), group__user=user_ref)
+    return Exists(direct) | Exists(via_group)

@@ -3,6 +3,9 @@ from django.contrib.auth.models import Group
 from hub.models import AccessRequest, App, AppGrant
 from django.urls import reverse
 from hub import services
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from hub.models import App
 
 PENDING = AccessRequest.Status.PENDING
 
@@ -116,3 +119,40 @@ def test_admin_bulk_approve_action(admin_client, app, user):
         {"action": "approve_selected", "_selected_action": [req.pk]},
     )
     assert AppGrant.objects.filter(app=app, user=user).exists()
+
+
+def test_effective_count_matches_dashboard_rule(app, user):
+    group_app = App.objects.create(name="Group app", slug="group-app", launch_url="https://g.test")
+    sales = Group.objects.create(name="Sales")
+    user.groups.add(sales)
+    group_app.allowed_groups.add(sales)
+    AppGrant.objects.create(app=app, user=user)  # direct
+    AppGrant.objects.create(app=group_app, user=user)  # direct + group: counted once
+
+    annotated = (
+        get_user_model().objects
+        .annotate(n=App.objects.count_accessible_subquery())
+        .get(pk=user.pk)
+    )
+    assert annotated.n == App.objects.accessible_by(user).count() == 2
+
+
+def test_user_admin_shows_effective_breakdown(admin_client, app, user):
+    AppGrant.objects.create(app=app, user=user)
+    page = admin_client.get(f"/admin/accounts/user/{user.pk}/change/").content.decode()
+    assert 'id="effective-access"' in page
+    assert app.name in page and "Direct" in page
+
+
+def test_group_page_grants_apps_to_members(admin_client, app, user):
+    resp = admin_client.post("/admin/auth/group/add/", {
+        "name": "Sales team",
+        "members": [user.pk],
+        "apps": [app.pk],
+    })
+    assert resp.status_code == 302  # saved
+
+    group = Group.objects.get(name="Sales team")
+    assert user in group.user_set.all()
+    assert app in group.granted_apps.all()
+    assert list(App.objects.accessible_by(user)) == [app]  # user now sees it
