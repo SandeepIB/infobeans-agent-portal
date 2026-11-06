@@ -2,11 +2,15 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 
 from . import services
 from .forms import AccessRequestForm
 from .models import AccessRequest, App, LaunchEvent
+from urllib.parse import quote
+from django.http import HttpResponse
+
+
 
 DASHBOARD_FIELDS = ("name", "slug", "description", "launch_url", "icon_svg", "display_order")
 
@@ -63,3 +67,19 @@ def cancel_request(request, pk):
     if services.cancel_request(request.user, pk):
         messages.info(request, "Request withdrawn.")
     return redirect("hub:dashboard")
+
+
+@require_GET
+def nginx_auth(request, slug):
+    """Called by nginx (auth_request) before proxying to an internal app."""
+    if not request.user.is_authenticated:
+        return HttpResponse(status=401)
+    if not App.objects.accessible_by(request.user).filter(slug=slug).exists():
+        return HttpResponse(status=403)
+
+    resp = HttpResponse(status=200)
+    resp["X-Auth-User-Id"] = str(request.user.pk)
+    resp["X-Auth-Email"] = request.user.email
+    resp["X-Auth-Name"] = quote(request.user.get_full_name() or request.user.email)  # header-safe
+    resp["Cache-Control"] = "no-store"
+    return resp

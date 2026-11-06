@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from hub.models import App
 
+
 PENDING = AccessRequest.Status.PENDING
 
 
@@ -156,3 +157,20 @@ def test_group_page_grants_apps_to_members(admin_client, app, user):
     assert user in group.user_set.all()
     assert app in group.granted_apps.all()
     assert list(App.objects.accessible_by(user)) == [app]  # user now sees it
+
+
+def test_nginx_auth_requires_login(client, app):
+    assert client.get(reverse("hub:nginx_auth", args=[app.slug])).status_code == 401
+
+
+def test_nginx_auth_forbidden_without_access(client, app, user):
+    client.force_login(user)
+    assert client.get(reverse("hub:nginx_auth", args=[app.slug])).status_code == 403
+
+
+def test_nginx_auth_returns_identity(client, app, user):
+    AppGrant.objects.create(app=app, user=user)
+    client.force_login(user)
+    resp = client.get(reverse("hub:nginx_auth", args=[app.slug]))
+    assert resp.status_code == 200
+    assert resp["X-Auth-Email"] == user.email
