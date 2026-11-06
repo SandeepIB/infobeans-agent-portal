@@ -16,8 +16,10 @@ pyasn1_modules==0.4.2
 pycparser==3.12
 Pygments==2.21.0
 pytest==9.2.0
+pytest-django==4.14.0
 python-dotenv==1.2.4
 requests==2.34.2
 sqlparse==0.6.0
 tzdata==2026.5
 urllib3==2.8.0
+whitenoise==6.12.0
