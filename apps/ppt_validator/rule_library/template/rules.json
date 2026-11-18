@@ -1,0 +1,4 @@
+[
+  {"type": "min_slides", "value": "5",  "rule_id": "template_min_slides"},
+  {"type": "max_slides", "value": "30", "rule_id": "template_max_slides"}
+]

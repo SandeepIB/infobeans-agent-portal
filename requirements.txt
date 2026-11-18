@@ -23,3 +23,6 @@ sqlparse==0.6.0
 tzdata==2026.5
 urllib3==2.8.0
 whitenoise==6.12.0
+python-multipart>=0.0.12
+argon2-cffi>=23.1.0
+email-validator>=2.0.0

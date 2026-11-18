@@ -1,0 +1,17 @@
+[
+  {"type": "allowed_font",       "value": "Lexend", "rule_id": "typography_font_lexend"},
+
+  {"type": "min_title_font_pt",  "value": "34",     "rule_id": "typography_title_min"},
+  {"type": "max_title_font_pt",  "value": "38",     "rule_id": "typography_title_max"},
+
+  {"type": "min_body_font_pt",   "value": "12",     "rule_id": "typography_body_min"},
+  {"type": "max_body_font_pt",   "value": "18",     "rule_id": "typography_body_max"},
+
+  {"type": "min_eyebrow_font_pt","value": "10",     "rule_id": "typography_eyebrow_min"},
+  {"type": "max_eyebrow_font_pt","value": "14",     "rule_id": "typography_eyebrow_max"},
+
+  {"type": "max_bullets",        "value": "6",      "rule_id": "typography_max_bullets"},
+
+  {"type": "heading_case",       "value": "sentence",  "rule_id": "typography_heading_case"},
+  {"type": "eyebrow_case",       "value": "uppercase", "rule_id": "typography_eyebrow_case"}
+]

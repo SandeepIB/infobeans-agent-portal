@@ -1,0 +1,149 @@
+meta:
+  source_file: "InfoBeans Master Template Deck.pptx"
+  note: "Brand rules for the InfoBeans validator."
+
+theme:
+  aspect_ratio:
+    standard: "16:9"
+    target_ratio: 1.778
+    tolerance: 0.05
+    target_width_in: 10.0
+    target_height_in: 5.625
+
+  fonts:
+    major: { latin: "Lexend", east_asian: "", complex_script: "" }
+    minor: { latin: "Lexend", east_asian: "", complex_script: "" }
+    allowed_italic_only: "Verdana"
+
+  brand_spelling:
+    correct: "InfoBeans"
+    forbidden_casing:
+      - "Infobeans"
+      - "infoBeans"
+      - "INFOBEANS"
+      - "infobeans"
+
+  font_sizes:
+    title:        { min: 34, max: 38, preferred: 36, weight: "Light" }
+    h1:           { min: 30, max: 34, preferred: 32, weight: "Light" }
+    h2:           { min: 26, max: 30, preferred: 28, weight: "Normal" }
+    h3:           { min: 22, max: 26, preferred: 24, weight: "Normal" }
+    h4:           { min: 18, max: 22, preferred: 20, weight: "Normal" }
+    h5:           { min: 14, max: 18, preferred: 16, weight: "Normal" }
+    eyebrow:      { min: 10, max: 14, preferred: 12, weight: "Light", text_transform: "uppercase" }
+    body_large:   { min: 14, max: 18, preferred: 16, weight: "Light" }
+    body_medium:  { min: 12, max: 16, preferred: 14, weight: "Light" }
+    small_copy:   { min: 7,  max: 11, preferred: 9,  weight: "Light" }
+
+  heading_rules:
+    case: "sentence"           # "Why are design systems awesome" — not Title Case, not ALL CAPS
+    eyebrow_case: "uppercase"  # eyebrow is the one exception — always all caps
+    eyebrow_position: "above_header"  # optional element, sits above the main heading when used
+
+  colors:
+    # Brand palette
+    brand_red:        "#EA1B3D"
+    charcoal_gray:    "#373742"
+    medium_gray:      "#676775"
+    light_gray:       "#E6E6ED"
+    light_cream:      "#FFF9ED"
+    dark_tan:         "#FFF3D4"
+    white:            "#FFFFFF"
+    peach:            "#FFD0D8"
+    desire_red:       "#EB4C5E"
+    dark_red:         "#AA142D"
+    deep_red:         "#7C2235"
+    case_study_green: "#214837"
+    case_study_navy:  "#22225D"
+
+placeholders:
+  forbidden_patterns:
+    - "add title here"
+    - "add copy here as needed"
+    - "add subhead"
+    - "lorem ipsum"
+    - "example slide"
+    - "do not use"
+    - "body text"
+
+source_citations:
+  required_keywords:
+    - "%"
+    - "billion"
+    - "million"
+    - "tn"
+    - "$"
+    - "usd"
+    - "revenue"
+
+visual_quality:
+  max_bullets_per_slide: 7
+  max_words_per_slide: 150
+  min_words_per_slide: 10
+  max_font_families_per_deck: 3
+
+logo:
+  enabled: true
+  approved_phash: "93346ccb9334cce3"
+  hash_distance_tolerance: 10
+  required_on_slide_1: true
+  required_on_all_slides: true
+  position: "bottom-right"
+  target_left_pt: 672.92
+  target_top_pt: 369.99
+  target_width_pt: 16.64
+  target_height_pt: 16.64
+  position_tolerance_pt: 15.0
+  size_tolerance_pt: 5.0
+
+pagination:
+  enabled: true
+  exclude_title_slide: true
+  position: "bottom-left"
+  left_pt: 21.96
+  top_pt: 376.00
+  width_pt: 24.21
+  height_pt: 16.63
+  position_tolerance_pt: 5.0
+  font_family: "Lexend"
+  font_size_pt: 9.0
+  font_color: "#373742"
+  align: "left"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Table Design Guidelines for Executive Presentations
+# Reference: "Table Design Guidelines for Executive Presentations" document
+# ─────────────────────────────────────────────────────────────────────────────
+table_design:
+  # Rule 2 — Column count thresholds
+  max_columns_ideal: 6              # 4-6 columns: ideal for executive slide
+  max_columns_acceptable: 8        # 7-8 columns: acceptable with caution
+  # Any table with 9+ columns triggers a HIGH severity finding
+
+  # Rule 4 & 5 — Alignment enforcement
+  check_column_alignment: true
+  # Expected alignment per content type:
+  # text_columns     → LEFT  (names, descriptions, initiatives, recommendations)
+  # number_columns   → RIGHT (revenue, cost, %, counts, dates-as-data)
+  # signal_columns   → CENTER (status/RAG, yes/no, icons, ratings)
+  # header_alignment → should match the column data alignment
+
+  # Rule 7 — Border minimalism
+  check_border_minimalism: true
+  # Heavy uniform borders on every cell signal spreadsheet export, not exec table
+
+  # Rule 9 — Font readability
+  check_font_consistency: true
+  # Table font family must match the deck brand font; no shrinking to fit
+
+  # Rule 11 — Number format consistency
+  check_number_format_consistency: true
+  # Detects mixing of formats within the same column:
+  # e.g. "$2.4M" and "$1,850,000" in the same column → MEDIUM finding
+  # e.g. "18%" and "18.0%" mixed → LOW finding
+
+  # Row compactness — Rule 6
+  max_lines_per_cell: 3            # flag cells with more than 3 lines of content
+
+  # Header presence — Rule 8
+  require_header_row: true         # every table must have a visually distinct header row
