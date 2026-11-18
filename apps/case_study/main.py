@@ -31,7 +31,7 @@ load_dotenv(BASE_DIR / ".env")
 
 LLM_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 LLM_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://gateway.creatingwow.in")
-LLM_MODEL = os.getenv("CASE_STUDY_LLM_MODEL", "claude-sonnet-4-6")
+LLM_MODEL = os.getenv("CASE_STUDY_LLM_MODEL", "claude-sonnet-5")
 
 logger = logging.getLogger("case_study")
 
@@ -96,12 +96,18 @@ class PptRequest(BaseModel):
 
 # ── LLM call (isolated so tests can replace it) ──────────────────────────────
 
+def extract_text(body: dict) -> str:
+    """Join the reply's text blocks, skipping thinking blocks."""
+    blocks = body.get("content") or []
+    return "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
+
+
 async def call_llm(prompt: str) -> str:
     if not LLM_API_KEY:
         raise HTTPException(status_code=502, detail="The case study service is not configured")
     payload = {
         "model": LLM_MODEL,
-        "max_tokens": 2048,
+        "max_tokens": 4096,
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": prompt}],
     }
@@ -111,7 +117,7 @@ async def call_llm(prompt: str) -> str:
         "content-type": "application/json",
     }
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(f"{LLM_BASE_URL.rstrip('/')}/v1/messages", headers=headers, json=payload)
     except httpx.RequestError as exc:
         logger.error("Could not reach LLM service: %s", exc)
@@ -120,9 +126,15 @@ async def call_llm(prompt: str) -> str:
         logger.error("LLM error %s: %s", resp.status_code, resp.text[:500])
         raise HTTPException(status_code=502, detail="LLM service error")
     try:
-        return resp.json()["content"][0]["text"].strip()
-    except (KeyError, IndexError, ValueError):
+        body = resp.json()
+    except ValueError:
         raise HTTPException(status_code=502, detail="LLM returned an unexpected response")
+    text = extract_text(body)
+    if not text:
+        logger.error("No text in LLM reply: content_types=%s stop_reason=%s",
+                     [b.get("type") for b in body.get("content") or []], body.get("stop_reason"))
+        raise HTTPException(status_code=502, detail="LLM returned an unexpected response")
+    return text
 
 
 def parse_case_study(raw: str) -> dict:
