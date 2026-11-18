@@ -1,9 +1,46 @@
-.venv/
-__pycache__/
-*/__pycache__/
-*.pyc
-db.sqlite3
-staticfiles/
+# ─── Secrets: never commit ─────────────────────────────────────────
 .env
-.env.key
+.env.*
+!.env.example
+!.env.shared.example
+*.key
+*.pem
 sso_private.pem
+
+# ─── Python ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ─── Django ────────────────────────────────────────────────────────
+staticfiles/
+
+# ─── Databases ─────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── Frontend ──────────────────────────────────────────────────────
+node_modules/
+apps/ppt_validator/frontend/dist/
+
+# ─── Logs ──────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── OS / editors ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

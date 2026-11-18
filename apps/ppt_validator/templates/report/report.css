@@ -1,0 +1,240 @@
+/*
+ * NOTE: The @import for Google Fonts is intentionally omitted here.
+ * WeasyPrint (PDF renderer) cannot resolve external URLs in headless mode.
+ * Inter is used if installed on the server; Arial/Helvetica are the PDF fallbacks.
+ * Browser-based HTML preview inlines this CSS after the template already loaded the font.
+ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  background: #FFF9ED;
+  color: #373742;
+  font-size: 10pt;
+  line-height: 1.5;
+}
+
+/* ── Page layout ── */
+@page {
+  size: A4;
+  margin: 16mm 14mm 14mm 14mm;
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 8pt;
+    color: #676775;
+  }
+}
+
+/* ── Header band ── */
+.report-header {
+  background: #EA1B3D;
+  color: white;
+  padding: 18px 22px 14px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.header-left .brand {
+  font-size: 11pt;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin-bottom: 2px;
+}
+.header-left .subtitle {
+  font-size: 8pt;
+  opacity: 0.85;
+  font-weight: 500;
+}
+.header-right { text-align: right; }
+.header-right .date {
+  font-size: 8pt;
+  opacity: 0.8;
+}
+.header-right .filename {
+  font-size: 9pt;
+  font-weight: 700;
+  margin-top: 2px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Score banner ── */
+.score-banner {
+  background: white;
+  border: 1px solid #E6E6ED;
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(55,55,66,0.06);
+}
+.score-circle {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; color: white; font-weight: 800;
+  flex-shrink: 0;
+}
+.score-circle .pct { font-size: 16pt; line-height: 1; }
+.score-circle .lbl { font-size: 6pt; letter-spacing: 0.1em; margin-top: 1px; }
+.score-circle.pass { background: #158158; }
+.score-circle.warn { background: #D97706; }
+.score-circle.fail { background: #EA1B3D; }
+
+.score-meta h2 { font-size: 11pt; font-weight: 700; color: #373742; }
+.score-meta p  { font-size: 8.5pt; color: #676775; margin-top: 3px; }
+
+/* ── Section headers ── */
+.section-title {
+  font-size: 7.5pt; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: #EA1B3D;
+  margin-bottom: 8px; margin-top: 18px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #E6E6ED;
+}
+
+/* ── Summary pills ── */
+.pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.pill {
+  padding: 3px 10px; border-radius: 20px; font-size: 7.5pt;
+  font-weight: 700; border: 1px solid transparent;
+}
+.pill.fail { background: rgba(234,27,61,0.08); color: #EA1B3D; border-color: rgba(234,27,61,0.2); }
+.pill.warn { background: rgba(217,119,6,0.10); color: #D97706;  border-color: rgba(217,119,6,0.22); }
+.pill.ok   { background: rgba(21,129,88,0.08);  color: #158158;  border-color: rgba(21,129,88,0.2); }
+.pill.info { background: rgba(37,99,235,0.08);  color: #2563EB;  border-color: rgba(37,99,235,0.2); }
+
+/* ── Tables ── */
+.tbl-wrap {
+  border: 1px solid #E6E6ED; border-radius: 8px;
+  overflow: hidden; margin-bottom: 16px;
+}
+table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+thead tr { background: #FFF9ED; }
+th {
+  padding: 7px 10px; text-align: left; font-size: 7pt; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: #676775;
+  border-bottom: 1px solid #E6E6ED;
+}
+td {
+  padding: 7px 10px; border-bottom: 1px solid rgba(55,55,66,0.05);
+  vertical-align: top; color: #373742;
+}
+tr:last-child td { border-bottom: none; }
+
+/* ── Score bar ── */
+.score-bar-wrap { display: flex; align-items: center; gap: 6px; }
+.score-bar-bg {
+  width: 60px; height: 5px; background: #E6E6ED;
+  border-radius: 3px; overflow: hidden; display: inline-block;
+}
+.score-bar-fill { height: 100%; border-radius: 3px; display: block; }
+.score-bar-fill.pass { background: #158158; }
+.score-bar-fill.warn { background: #D97706; }
+.score-bar-fill.fail { background: #EA1B3D; }
+.score-num { font-size: 8pt; font-weight: 700; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 6.5pt; font-weight: 700; text-transform: uppercase; white-space: nowrap;
+}
+.badge.completed { background: rgba(21,129,88,0.1); color: #158158; }
+.badge.failed    { background: rgba(234,27,61,0.1); color: #EA1B3D; }
+.badge.CRITICAL  { background: rgba(124,34,53,0.12); color: #7C2235; }
+.badge.HIGH      { background: rgba(234,27,61,0.10); color: #EA1B3D; }
+.badge.MEDIUM    { background: rgba(217,119,6,0.10); color: #D97706; }
+.badge.LOW       { background: rgba(37,99,235,0.08); color: #2563EB; }
+.badge.AUTO_FIX            { background: rgba(21,129,88,0.1); color: #158158; }
+.badge.HUMAN_APPROVAL      { background: rgba(124,34,53,0.1); color: #7C2235; }
+.badge.RECOMMENDATION_ONLY { background: rgba(55,55,66,0.07); color: #676775; }
+
+.type-tag {
+  font-size: 6pt; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.type-tag.rule { background: rgba(21,129,88,0.1); color: #158158; }
+.type-tag.llm  { background: rgba(37,99,235,0.1); color: #2563EB; }
+
+/* ── No findings ── */
+.no-findings {
+  text-align: center; padding: 20px; color: #158158;
+  font-weight: 700; font-size: 9pt;
+  background: rgba(21,129,88,0.04); border-radius: 8px;
+  border: 1px solid rgba(21,129,88,0.15);
+}
+
+/* ── Finding Cards ── */
+.findings-list-pdf { margin-bottom: 16px; }
+
+.slide-group-header-pdf {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #F3F4F6; border: 1px solid #E6E6ED; border-radius: 5px;
+  padding: 5px 10px; margin-top: 12px; margin-bottom: 6px;
+}
+.slide-group-label-pdf {
+  font-size: 8pt; font-weight: 800; color: #373742;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.slide-group-count-pdf {
+  font-size: 7pt; font-weight: 600; color: #676775;
+}
+
+.finding-card-pdf {
+  background: white;
+  border: 1px solid #E6E6ED;
+  border-left: 4px solid #E6E6ED;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  page-break-inside: avoid;
+}
+.finding-card-pdf.severity-CRITICAL { border-left-color: #7C2235; }
+.finding-card-pdf.severity-HIGH     { border-left-color: #EA1B3D; }
+.finding-card-pdf.severity-MEDIUM   { border-left-color: #D97706; }
+.finding-card-pdf.severity-LOW      { border-left-color: #2563EB; }
+
+.finding-header-pdf { margin-bottom: 6px; }
+.slide-badge-pdf {
+  background: #373742; color: white;
+  font-size: 7pt; font-weight: 700; padding: 1px 6px; border-radius: 3px;
+  margin-right: 6px; display: inline-block;
+}
+.agent-tag-pdf {
+  font-size: 7.5pt; color: #676775; font-weight: 600; margin-left: 4px;
+}
+.finding-title-pdf {
+  font-size: 9.5pt; font-weight: 700; color: #373742; margin-bottom: 3px; margin-top: 4px;
+}
+.finding-desc-pdf {
+  font-size: 8.2pt; color: #676775; line-height: 1.4; margin-bottom: 6px;
+}
+.finding-rec-pdf {
+  background: rgba(234,27,61,0.04);
+  border: 1px solid rgba(234,27,61,0.15);
+  border-left: 3px solid #EA1B3D;
+  border-radius: 4px; padding: 6px 10px; margin-top: 4px;
+}
+.rec-label-pdf {
+  font-size: 7pt; font-weight: 700; color: #EA1B3D;
+  text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px;
+}
+
+/* ── Footer note ── */
+.report-footer {
+  margin-top: 24px; padding-top: 10px;
+  border-top: 1px solid #E6E6ED;
+  font-size: 7.5pt; color: #676775; text-align: center;
+}
+.report-footer strong { color: #EA1B3D; }
+
+/* ── Page break ── */
+.page-break { page-break-before: always; }

@@ -1,0 +1,1358 @@
+# CLAUDE.md
+
+Guidance for Claude (and any engineer) working in the InfoBeans Agentic PPT Review Platform repository.
+Read this before touching any file. If something here conflicts with an ad-hoc instruction in chat,
+this file wins unless the person explicitly overrides it for that session.
+
+---
+
+## 1. What this project is
+
+A PowerPoint quality gate that started as a mechanical brand-compliance validator (`rules.yaml` +
+`python-pptx` checks) and is being evolved into a configuration-driven, agentic **Presentation Agent
+Platform**: a deterministic orchestrator that runs a registry of independent rule-based and LLM-based
+agents (template, brand, visual, content, story, security, accessibility, customer-focus, proposal-context,
+etc.), aggregates their findings into a score, and routes the result through a **Review → Fix → Re-review**
+loop until the deck is customer-ready.
+
+Two source documents define this project and should be treated as authoritative context:
+
+- **Implementation Plan** — the concrete Phase-1 build (directory layout, DB migration, agent list, API
+  contracts, FastAPI routers, React frontend, LibreOffice renderer).
+- **Platform Architecture Notes** — the governance-first design principles (Agent Registry, Rule Library,
+  Prompt Library, Agent DAG, standard Agent Contract, Fix Agent action-typing, Evaluation Agent,
+  Admin/Governance UI).
+
+The mission: build the concrete Phase-1 system in a way that never forecloses the governance-first end state.
+
+---
+
+## 2. Non-negotiable rules
+
+These are hard constraints. Do not "helpfully" work around them.
+
+1. **Legacy is frozen.** `app.py` routes `/`, `/runs*`, `/validate`; `db.py`; `validator/checks.py`,
+   `core.py`, `models.py`, `rules.py`, `report_pdf.py`, `report_pptx.py`; `correct_pptx.py`; `rules.yaml`;
+   `static/index.html` — all stay exactly as they are. The only permitted change to `app.py` is adding
+   `include_router(...)` calls for new v2 routers.
+
+2. **Database changes are additive only.** New tables via `CREATE TABLE IF NOT EXISTS`. The existing `runs`
+   table is never altered, migrated, or dropped. Every migration must be idempotent and safe to re-run.
+
+3. **No agent calls any LLM directly.** All model access goes through the `LLMProvider` interface
+   (`llm/provider.py`). The active provider is selected at startup from `LLM_PROVIDER` in `.env` —
+   never hardcoded. Supported providers: `gateway` (default, `gateway.creatingwow.in`), `litellm`,
+   `claude`, `groq`, `gemini`, `openai`, and `mock` (tests only). If you find any direct HTTP call
+   to a model API anywhere outside `llm/providers/`, that's a bug — fix it, don't extend it.
+   See Section 14 for the full provider architecture and `.env` reference.
+
+4. **No agent returns free text.** Every agent — rule-based or LLM-based — returns the standard Agent
+   Contract (Section 5). If an LLM call would return prose, wrap it with a structured-output schema and
+   parse it before it leaves the agent boundary.
+
+5. **The renderer must never throw when LibreOffice is missing.** `renderer/factory.py` auto-detects
+   `soffice`; absence means `UnavailableRenderer`, not an exception. The Visual Agent must handle
+   `rendering_status = unavailable` by emitting a single INFO finding, not by failing the pipeline.
+
+6. **Rules and prompts are never hard-coded in agent code — ever.** Rule-based agents read from the
+   Rule Library (versioned YAML/JSON, one rule set per domain). LLM-based agents load every prompt
+   string — system role, user template, output schema, few-shot examples — exclusively from the Prompt
+   Library (`services/prompt_service.py` → DB `prompt_versions` table). If you see a string that looks
+   like an instruction to an LLM anywhere in `agents/`, `services/`, or `api/`, that is a bug — move
+   it to the Prompt Library immediately. Users must be able to edit, version, and activate any prompt
+   from the Admin UI without a code deploy. See Section 15 for the full Prompt Library architecture.
+
+7. **Every finding is action-typed.** `action_type ∈ {AUTO_FIX, HUMAN_APPROVAL, RECOMMENDATION_ONLY}`.
+   Only `AUTO_FIX` findings may ever be mechanically applied by the Fix Agent without a human in the loop.
+   Never default an ambiguous finding to `AUTO_FIX`.
+
+8. **The orchestrator is deterministic; agents are intelligent — never the reverse.** The orchestrator
+   (not an LLM) decides what runs, in what order, in parallel or dependent, what gets retried, and what
+   needs human approval. Do not let an LLM call decide which compliance agents to skip or which findings
+   to suppress.
+
+9. **Everything is versioned and auditable.** Rule sets, prompts, and agents all carry a version. Every
+   agent run, every LLM call, and every fix operation is logged (`agent_run`, `llm_request`,
+   `fix_operations`, `audit_logs`). If a change isn't traceable to "why did this deck score 72," it's
+   not done.
+
+---
+
+## 3. Directory map
+
+```
+app.py                 KEEP — legacy routes + include_router(v2) mounts
+db.py                  KEEP — legacy `runs` table access
+correct_pptx.py        KEEP
+rules.yaml             KEEP — legacy mechanical rule set (distinct from the new Rule Library)
+static/index.html      KEEP — legacy UI
+
+validator/             KEEP — mechanical brand checks, unchanged
+  checks.py  core.py  llm_check.py  models.py  report_pdf.py  report_pptx.py  rules.py
+
+frontend/              NEW — React/Vite: upload, progress, results, history, admin
+agents/                NEW — ReviewAgent ABC + Visual/Content/CIOLens/Critic/ProposalContext
+                             (+ registry entries for future agents)
+llm/                   NEW — LLMProvider ABC, provider factory, per-provider implementations
+  provider.py              — LLMProvider ABC + ProviderFactory (reads LLM_PROVIDER from env)
+  providers/
+    gateway_provider.py    — InfoBeans gateway (gateway.creatingwow.in)
+    litellm_provider.py    — LiteLLM wrapper (routes to Claude, Groq, Gemini, OpenAI, etc.)
+    claude_provider.py     — Anthropic Claude direct
+    groq_provider.py       — Groq direct
+    gemini_provider.py     — Google Gemini direct
+    openai_provider.py     — OpenAI direct
+    mock_provider.py       — deterministic test doubles, never calls any real API
+renderer/              NEW — SlideRenderer ABC, LibreOfficeRenderer, UnavailableRenderer, factory
+prompts/               NEW — seed YAML files loaded into DB on first run, one folder per agent
+                             (source of truth for initial versions; DB is authoritative at runtime)
+rule_library/          NEW — versioned rule YAML/JSON, one folder per domain
+                             (branding, typography, template, security, accessibility)
+services/              NEW — ReviewService (orchestrator), PPTService, PromptService,
+                             RuleService, ObservabilityService, FixService,
+                             SlideDesignMatchService
+api/                   NEW — FastAPI v2 routers: review, prompts, rules, agents,
+                             observability, health
+db/                    NEW — migrations + v2 repository + models
+slide_templates/       NEW — reference PPT slides used for design-match exclusion
+```
+
+---
+
+## 4. Orchestration model — Agent DAG
+
+The orchestrator is deterministic. It builds an execution plan from the Agent Registry and a Review
+Profile (which agents are enabled for this review), then executes it as a DAG:
+
+```
+Review Request
+│
+├── PPTX (required)
+├── Review Profile (required)
+├── Reference Template PPT (optional) ← Slide Design Match
+└── Proposal Context (optional)       ← Proposal Agent
+
+                    Extraction (always first)
+                         │
+         ┌───────────────┼────────────────┐
+         │               │                │
+    Template         Branding         Security
+    Accessibility
+         │
+         ▼
+    [Slide Design Match Filter]  ← if reference PPT provided,
+         │                          matched slides are excluded
+         │                          from all downstream agents
+         ▼
+    Content Extraction
+         │
+    ┌────┼───────────────┬─────────────────┐
+    │    │               │                 │
+ Content Story      Customer          Proposal
+ Agent  Agent        Agent             Context
+                                        Agent
+                          │                 │
+                          └────────┬────────┘
+                                   ▼
+                        Cross-Slide / CIO Lens
+                                   │
+                                   ▼
+                               Critic
+                                   │
+                                   ▼
+                    Aggregator → score + findings + severity
+                                   │
+                    ┌──────────────┴──────────────┐
+                    ▼                             ▼
+             Human Review                    Fix Agent
+          (HUMAN_APPROVAL /               (AUTO_FIX only)
+           RECOMMENDATION_ONLY)                  │
+                                                 ▼
+                                           New PPT → Re-review
+                                   │
+                                   ▼
+              Customer Quality Gate: 🟢 READY / 🟡 REVIEW / 🔴 BLOCKED
+```
+
+**Rules for adding a new agent to the DAG:**
+
+- Register it in the Agent Registry with `agent_id`, `type` (`rule | llm | hybrid`),
+  `execution_mode` (`parallel | sequential`), and its dependency (what extraction stage it needs).
+- Give it a Review Profile toggle so it can be enabled/disabled per customer/project without a code change.
+- Do not add ad-hoc `if agent_name == "..."` branching in `ReviewService` — the orchestrator reads the
+  registry, it doesn't special-case agents.
+
+---
+
+## 5. Standard Agent Contract
+
+Every agent, regardless of type, returns exactly this shape (Python: a dataclass in `agents/base.py`;
+wire format: JSON):
+
+```json
+{
+  "agent_id": "customer_focus",
+  "status": "completed",
+  "score": 78,
+  "findings": [
+    {
+      "slide": 8,
+      "severity": "HIGH",
+      "category": "customer_relevance",
+      "title": "Too technical",
+      "description": "The slide focuses heavily on implementation details.",
+      "recommendation": "Emphasize customer outcomes instead of internals.",
+      "confidence": 0.91,
+      "action_type": "RECOMMENDATION_ONLY",
+      "rule_id": null,
+      "prompt_version_id": 5
+    }
+  ],
+  "summary": "..."
+}
+```
+
+When writing an LLM-based agent, force structured output against this schema (or a subset of it) at the
+prompt level, and validate the parsed response before constructing the dataclass. Never pass raw model
+text further down the pipeline.
+
+---
+
+## 6. Rule Library vs. Prompt Registry — keep them separate
+
+|                  | Rule Library                                              | Prompt Registry                                        |
+|------------------|-----------------------------------------------------------|--------------------------------------------------------|
+| Used by          | Rule-type and hybrid agents                               | LLM-type agents                                        |
+| Format           | Versioned YAML/JSON per domain (`rule_library/branding/v2.yaml`) | Versioned YAML per agent (`prompts/customer_focus/v5.yaml`) |
+| Storage          | Loaded into DB tables `rules` / `rule_versions` on startup | Loaded into DB tables `prompt` / `prompt_version` on startup |
+| Mutability       | Versions immutable once loaded; new changes = new version | Same — immutable once created                          |
+| Activation       | A rule set version is activated per business unit/project | A prompt version is activated globally or per Review Profile |
+| Applies-to scope | e.g. "Minimum Body Font: 16pt, applies to Customer + Sales, not Internal" | e.g. a prompt can be scoped to a Review Profile via `prompt_overrides` |
+
+Never let an agent read a rule or a prompt string from anywhere except these two registries. If you're
+tempted to inline a threshold or a system prompt in agent code "just for now," stop — add a versioned
+entry instead.
+
+---
+
+## 7. Review Profiles — configuration, not code
+
+A Review Profile is what makes "the same PPT gets a different review for a CTO audience vs. a CEO
+audience" possible without branching code:
+
+```json
+{
+  "review_profile": "customer_presentation",
+  "customer": "ABC Corporation",
+  "audience": "CTO + Business Leadership",
+  "objective": "Get approval for proposed solution",
+  "industry": "Banking",
+  "presentation_level": "executive",
+  "agents": [
+    { "id": "template",          "enabled": true  },
+    { "id": "branding",          "enabled": true  },
+    { "id": "customer_focus",    "enabled": true  },
+    { "id": "storytelling",      "enabled": true  },
+    { "id": "proposal_context",  "enabled": true  },
+    { "id": "architecture",      "enabled": false }
+  ]
+}
+```
+
+The API and frontend must support both **Run All** (build the full plan from the profile) and
+**Run Selected** (execute a subset the orchestrator resolves against dependencies). Never hardcode a
+profile in Python — profiles are data, stored and versioned like everything else.
+
+---
+
+## 8. Fix Agent discipline
+
+- The Fix Agent only ever touches findings marked `AUTO_FIX` (e.g., "body font 12px, rule requires
+  16px minimum" → mechanically correct).
+- `HUMAN_APPROVAL` and `RECOMMENDATION_ONLY` findings are surfaced to a human; the Fix Agent must never
+  auto-apply them, even if a prompt or a user asks it to "just fix everything."
+- Every fix is logged in `fix_operations` (what changed, which finding triggered it, before/after) and
+  triggers a re-review, not a re-score by assumption — always re-run the affected agents.
+
+---
+
+## 9. Testing expectations
+
+- Every new agent needs a `MockProvider`-backed unit test — no test may call the live gateway.
+- Renderer tests must cover both `LibreOfficeRenderer` (if `soffice` present in CI) and
+  `UnavailableRenderer` (always runs).
+- Orchestrator/DAG tests should assert dependency ordering, not just final output — a Content Agent that
+  accidentally runs before extraction is a regression even if the final score looks right.
+- Golden-dataset evaluation (Section 16 of the architecture notes) is a separate, longer-running suite —
+  do not fold it into the standard unit test run.
+- Slide Design Match tests must cover: exact match, partial match, no match, and missing reference PPT
+  (graceful degradation — never fail the pipeline).
+
+---
+
+## 10. Commands
+
+```bash
+# Backend
+uvicorn app:app --reload --port 8000
+
+# Frontend
+cd frontend && npm run dev
+cd frontend && npm run build   # produces frontend/dist, served at /app
+
+# Tests
+pytest tests/
+
+# DB migration (idempotent, additive)
+python db/migrate.py
+```
+
+---
+
+## 11. When extending this system
+
+Checklist for "I need to add a new reviewer, e.g. a Legal Compliance Agent":
+
+1. Add an entry to the Agent Registry (`agent_id`, `type`, `version`, `severity default`,
+   `execution_mode`, `dependency stage`).
+2. If rule-based: add a versioned rule set under `rule_library/legal/`. If LLM-based: add a versioned
+   prompt under `prompts/legal_compliance/v1.yaml` with an explicit output schema.
+3. Wire the dependency into the DAG (which extraction stage does it need?).
+4. Add it to relevant Review Profiles as `enabled: true/false`.
+5. Write a `MockProvider`-backed test.
+6. Do not touch any file listed as legacy in Section 3.
+7. Update the Prompt/Rule admin UI listing if it's user-facing (it's data-driven, so this is usually
+   automatic — verify, don't assume).
+
+If a task would require breaking rules 1–9 above to complete, stop and flag it rather than proceeding.
+
+---
+
+## 12. Slide Design Match — reference template exclusion
+
+### What it is
+
+The user may optionally supply a **Reference Template PPT** alongside the deck under review. This PPT
+contains one or more slides whose visual design (layout, background, colour zones, placeholder positions)
+represents the approved template. Any slide in the review deck whose design **matches** a reference slide
+is excluded from design-related review agents — it has already passed the design bar.
+
+This is not a content bypass. Only design-layer findings are suppressed for matched slides. Content,
+story, proposal, and security agents still run on every slide.
+
+### Why it exists
+
+When a team builds a deck on the approved master template, flagging every title slide or section divider
+for "wrong layout" is noise. The match filter removes that noise without disabling the template agent
+globally.
+
+### How matching works
+
+Matching is **structural and visual, not pixel-perfect**:
+
+| Signal                        | Weight |
+|-------------------------------|--------|
+| Slide layout name             | High   |
+| Background fill (colour/image hash) | High |
+| Placeholder count + types     | Medium |
+| Placeholder positions (normalised) | Medium |
+| Font family on master         | Low    |
+
+A slide is considered **matched** when the weighted similarity score exceeds the configured threshold
+(default `0.85`, configurable per Review Profile).
+
+Matching is performed by `SlideDesignMatchService` before content extraction. The service returns a
+`matched_slide_indices` list that the orchestrator attaches to the review context. Agents that respect
+the exclusion check this list before emitting design findings.
+
+### Agents that honour the exclusion
+
+| Agent            | Respects match exclusion? | Reason                                      |
+|------------------|--------------------------|---------------------------------------------|
+| Template Agent   | Yes                      | Design compliance — excluded if matched     |
+| Branding Agent   | Yes                      | Visual brand — excluded if matched          |
+| Accessibility    | Partial                  | Colour contrast still checked; layout skipped |
+| Content Agent    | No                       | Content is independent of design            |
+| Story Agent      | No                       | Narrative is independent of design          |
+| Customer Agent   | No                       | Messaging is independent of design          |
+| Proposal Agent   | No                       | Requirement coverage is independent of design |
+| Security Agent   | No                       | Security is independent of design           |
+| CIO Lens         | No                       | Deck-level; operates on all slides          |
+
+### Input
+
+```
+Review Request
+├── PPTX                    (required)
+├── Review Profile          (required)
+├── Reference Template PPT  (optional) ← new optional input
+└── Proposal Context        (optional)
+```
+
+The reference PPT is uploaded as a separate file. If absent, the match filter is skipped entirely —
+no error, no degraded score, no pipeline change.
+
+### Reference PPT storage and versioning
+
+- Stored as a versioned artifact: `reference_template_id` + `reference_template_version`.
+- Included in the audit trail so "why was slide 3 not reviewed?" is always answerable.
+- A team can register a shared reference PPT once and reuse it across multiple review runs.
+
+### Review Profile configuration
+
+```json
+{
+  "review_profile": "customer_proposal",
+  "slide_design_match": {
+    "enabled": true,
+    "reference_template_id": "infobeans-master-v3",
+    "match_threshold": 0.85,
+    "exclusion_scope": ["template", "branding"]
+  }
+}
+```
+
+To disable for a profile:
+
+```json
+"slide_design_match": { "enabled": false }
+```
+
+### Agent Registry — SlideDesignMatchService
+
+```yaml
+service_id: slide_design_match
+type: rule
+version: 1
+execution_mode: sequential
+dependency_stage: extraction
+requires:
+  - pptx
+  - reference_template_ppt
+enabled_by_default: false
+```
+
+### Failure behaviour
+
+- Reference PPT missing or unreadable → log WARNING, set `match_filter_status: unavailable`,
+  continue pipeline with zero exclusions. Never fail the review run.
+- Partial parse (some slides unreadable) → match only the readable slides; log which were skipped.
+
+### What the UI shows
+
+- A **"Design Matched"** badge on slides that were excluded from design review.
+- Tooltip: "This slide matches the approved reference template. Design agents were not applied."
+- The Proposal Coverage Matrix and content findings still appear for matched slides.
+
+### Implementation checklist
+
+- [ ] `SlideDesignMatchService` in `services/slide_design_match.py`
+- [ ] `reference_template_ppt` added as optional field to Review Request schema
+- [ ] `matched_slide_indices` added to review context passed to all agents
+- [ ] Template Agent and Branding Agent check `matched_slide_indices` before emitting findings
+- [ ] `reference_template_id` + `reference_template_version` added to audit trail
+- [ ] `slide_design_match` block added to Review Profile schema
+- [ ] DB table `reference_templates` (additive migration, idempotent)
+- [ ] Upload endpoint for reference PPT in `api/review.py`
+- [ ] "Design Matched" badge in React results UI
+- [ ] Unit tests: exact match, partial match, no match, missing reference PPT
+
+---
+
+## 13. Proposal Context Agent
+
+### What it is
+
+A dedicated **Proposal Context Agent** (`agent_id: proposal_context`) that evaluates whether the
+presentation satisfies proposal requirements, client objectives, scope, and win themes.
+
+This agent is distinct from all other agents:
+
+| Agent            | Question it answers                                                              |
+|------------------|----------------------------------------------------------------------------------|
+| Customer/CIO Lens | "Is this appropriate and compelling for the executive audience?"                |
+| Story Agent      | "Does this tell a coherent story?"                                               |
+| Proposal Agent   | "Does this presentation satisfy and support the proposal requirements?"          |
+
+### Proposal Context as a first-class input
+
+```
+Review Request
+├── PPTX
+├── Review Profile
+├── Reference Template PPT  (optional)
+└── Proposal Context        (optional)
+      ├── Client
+      ├── Opportunity
+      ├── Objective
+      ├── Requirements
+      ├── Scope
+      ├── Deliverables
+      ├── Pain Points
+      ├── Win Themes
+      ├── Differentiators
+      ├── Evaluation Criteria
+      ├── Mandatory Content
+      ├── Constraints
+      └── Additional Guidance
+```
+
+Do not put proposal guidance into the system prompt. It is a versioned, structured input — not a
+prompt string.
+
+### Proposal Context schema
+
+```yaml
+proposal_context:
+  client: "ABC Bank"
+
+  opportunity:
+    name: "Digital Banking Modernization"
+    objective: "Modernize digital banking platform"
+
+  audience:
+    primary: "CIO"
+    secondary: ["CTO", "Business Leadership"]
+
+  business_problem:
+    - "Legacy platform has scalability limitations"
+    - "High operational cost"
+    - "Slow feature delivery"
+
+  requirements:
+    - id: REQ-001
+      requirement: "Cloud migration strategy"
+      mandatory: true
+    - id: REQ-002
+      requirement: "API modernization"
+      mandatory: true
+    - id: REQ-003
+      requirement: "Security architecture"
+      mandatory: true
+
+  deliverables:
+    - "Target architecture"
+    - "Migration roadmap"
+    - "Implementation plan"
+
+  win_themes:
+    - "Accelerated modernization"
+    - "Reduced operational cost"
+    - "Low-risk migration"
+
+  differentiators:
+    - "Reusable modernization framework"
+    - "Accelerator-based migration"
+
+  evaluation_criteria:
+    - "Technical capability"
+    - "Delivery approach"
+    - "Security"
+    - "Cost optimization"
+
+  constraints:
+    - "Existing core banking system must remain operational"
+    - "Migration must happen incrementally"
+```
+
+### DAG position
+
+The Proposal Agent runs in parallel with Content, Story, and Customer agents after content extraction.
+It does NOT depend on the CIO Lens. The Critic reconciles its findings with all other agents.
+
+```
+Content Extraction
+    ├── Content Agent
+    ├── Story Agent
+    ├── Customer Agent
+    └── Proposal Context Agent  ← parallel, independent
+              │
+              ▼
+     Cross-Slide / CIO Lens
+```
+
+### Agent Registry entry
+
+```yaml
+agent_id: proposal_context
+name: Proposal Context Agent
+type: llm
+version: 1
+execution_mode: parallel
+dependency_stage: content_extraction
+requires:
+  - ppt_content
+  - proposal_context
+severity_default: MEDIUM
+enabled_by_default: false
+```
+
+### Review Profile integration
+
+```json
+{
+  "review_profile": "customer_proposal",
+  "agents": [
+    { "id": "template",         "enabled": true  },
+    { "id": "branding",         "enabled": true  },
+    { "id": "customer_focus",   "enabled": true  },
+    { "id": "storytelling",     "enabled": true  },
+    { "id": "proposal_context", "enabled": true  },
+    { "id": "cio_lens",         "enabled": true  }
+  ]
+}
+```
+
+For internal presentations: `{ "id": "proposal_context", "enabled": false }` — no code change required.
+
+### Eight review dimensions
+
+**A. Requirement Coverage** — Is every mandatory requirement addressed?
+
+```
+REQ-001 Cloud migration strategy → Slides 12–14 → COVERED
+REQ-003 Security architecture   → No evidence  → MISSING
+```
+
+Coverage values: `COVERED | PARTIALLY_COVERED | MISSING | CONTRADICTED | NOT_APPLICABLE`
+
+**B. Requirement-to-Slide Traceability** — Evidence chain per requirement:
+
+```
+REQ-002 API Modernization
+  Slides: 15 (API Architecture), 16 (API Migration Approach)
+  Evidence: API gateway, microservices, migration phases
+  Coverage: STRONG  Confidence: 0.94
+```
+
+**C. Win Theme Coverage** — Are win themes demonstrated with evidence?
+
+```
+Win Theme: "Low-risk migration"
+  ✓ Phased migration  ✓ Parallel run  ✓ Rollback strategy
+  Coverage: STRONG
+
+Win Theme: "Reduced operational cost"
+  ✗ No quantified savings  ✗ No TCO comparison
+  Coverage: WEAK
+```
+
+**D. Client Pain → Solution → Value chain** — Full value proposition present?
+
+```
+Pain → Solution → Capability → Business Outcome → Evidence
+```
+
+Flag if the deck only says "We will modernise your platform using AWS" with no outcome or evidence.
+
+**E. Scope and Deliverable Alignment** — Missing or out-of-scope content?
+
+```
+Required: Migration + Testing + Training
+Deck has: Migration, Testing
+Missing:  Training  → HIGH finding
+```
+
+**F. Contradictions** — Conflicts between proposal context and slides?
+
+```
+Proposal Context: "Migration must be incremental"
+Slide 21: "Complete migration during a single cutover"
+→ CRITICAL finding, action_type: HUMAN_APPROVAL (never AUTO_FIX)
+```
+
+**G. Differentiation** — Are differentiators visible, explained, and evidenced?
+
+```
+Claim: "Accelerator-based migration"
+Deck: Mentioned once, no evidence, no competitive comparison
+→ RECOMMENDATION_ONLY finding
+```
+
+**H. Proposal Completeness** — Summary scorecard:
+
+```
+Requirements:  18 total / 15 covered / 2 partial / 1 missing
+Win Themes:     3 total / 2 strong   / 1 weak
+Deliverables:   6 total / 5 covered  / 1 missing
+Contradictions: 1
+Overall Score:  78
+Readiness:      REVIEW REQUIRED
+```
+
+### Proposal Coverage Matrix
+
+The agent internally produces a structured matrix before generating findings:
+
+```
+REQ-001 | Cloud migration       | Slides 12–14 | COVERED  | 95%
+REQ-002 | API modernization     | Slides 15–16 | COVERED  | 92%
+REQ-003 | Security architecture | Slide 18     | PARTIAL  | 81%
+REQ-004 | Training              | —            | MISSING  | 99%
+```
+
+This matrix is returned as part of the agent output and drives a dedicated **Proposal Coverage** tab
+in the React UI.
+
+### Agent Contract output
+
+```json
+{
+  "agent_id": "proposal_context",
+  "status": "completed",
+  "score": 82,
+  "findings": [
+    {
+      "slide": 21,
+      "severity": "HIGH",
+      "category": "requirement_coverage",
+      "title": "Security architecture requirement not sufficiently addressed",
+      "description": "The proposal context requires a security architecture but the deck contains only high-level statements.",
+      "recommendation": "Add a security architecture view covering identity, network security, data protection and monitoring.",
+      "confidence": 0.94,
+      "action_type": "HUMAN_APPROVAL",
+      "rule_id": "proposal.REQ-003",
+      "prompt_version_id": 3
+    }
+  ],
+  "summary": "The proposal addresses most requirements but has gaps in security evidence and one weakly supported win theme."
+}
+```
+
+### Action type discipline
+
+| action_type          | Examples                                                                              |
+|----------------------|---------------------------------------------------------------------------------------|
+| `AUTO_FIX`           | Missing proposal label, formatting consistency, known structural metadata             |
+| `HUMAN_APPROVAL`     | Missing requirement, contradiction, scope change, incorrect client claim, pricing, legal |
+| `RECOMMENDATION_ONLY`| Weak differentiation, weak business value, weak evidence, generic messaging           |
+
+**Hard rule:** Never `AUTO_FIX` business commitments, scope changes, pricing, or contractual matters.
+
+### Prompt location
+
+`prompts/proposal_context/v1.yaml` — versioned, immutable once created, never inlined in agent code.
+
+The prompt must instruct the model to:
+- Evaluate against requirements, not generic presentation quality.
+- Classify every requirement as `COVERED / PARTIALLY_COVERED / MISSING / CONTRADICTED / NOT_APPLICABLE`.
+- Never invent evidence not present in the PPT.
+- Never assume an implied capability satisfies a mandatory requirement.
+- Return only the structured Agent Contract.
+
+### Versioning and auditability
+
+Every review run audit trail includes:
+
+```
+PPT Version
++ Proposal Context Version
++ Review Profile Version
++ Proposal Prompt Version
++ Agent Version
+```
+
+This answers: "Why did Proposal Agent score this 74 last month but 86 today?"
+
+### Implementation checklist
+
+- [ ] Add `proposal_context` to Agent Registry
+- [ ] Create `prompts/proposal_context/v1.yaml` with explicit output schema
+- [ ] Implement `agents/proposal_context.py` (logic only, no inlined prompts)
+- [ ] Add `proposal_context` as optional field to Review Request schema
+- [ ] Add `proposal_context_version` to audit trail
+- [ ] Add `proposal_context` block to Review Profile schema
+- [ ] Implement Proposal Coverage Matrix as structured agent output
+- [ ] Add Proposal Coverage tab to React results UI
+- [ ] DB table `proposal_contexts` (additive migration, idempotent)
+- [ ] Upload / paste endpoint for Proposal Context in `api/review.py`
+- [ ] `MockProvider`-backed unit tests for all eight review dimensions
+- [ ] DAG integration test asserting Proposal Agent runs after content extraction, before CIO Lens
+
+---
+
+## 14. LLM Provider architecture — configurable, swappable, never hardcoded
+
+### Design principle
+
+No agent, service, or utility knows which LLM it is talking to. Every LLM call goes through the
+`LLMProvider` ABC. The concrete provider is resolved once at startup by `ProviderFactory` reading
+`LLM_PROVIDER` from `.env`. Swapping from the InfoBeans gateway to Groq is a one-line `.env` change
+with zero code changes.
+
+### Provider interface (`llm/provider.py`)
+
+```python
+class LLMProvider(ABC):
+    @abstractmethod
+    def complete(self, prompt: str, schema: dict | None = None, **kwargs) -> dict:
+        """
+        Send prompt, return parsed structured response.
+        If schema is provided, enforce structured output at the provider level.
+        Never return raw text — always return a dict.
+        """
+
+    @abstractmethod
+    def health(self) -> bool:
+        """Return True if the provider is reachable."""
+```
+
+`ProviderFactory.from_env()` reads `LLM_PROVIDER` and returns the correct concrete instance.
+Agents call `ProviderFactory.from_env()` once (or receive it via dependency injection) — they never
+instantiate a provider directly.
+
+### Supported providers
+
+| `LLM_PROVIDER` value | Class                  | Backing service                        |
+|----------------------|------------------------|----------------------------------------|
+| `gateway` (default)  | `GatewayProvider`      | InfoBeans gateway (`gateway.creatingwow.in`) |
+| `litellm`            | `LiteLLMProvider`      | LiteLLM proxy — routes to any model    |
+| `claude`             | `ClaudeProvider`       | Anthropic Claude API (direct)          |
+| `groq`               | `GroqProvider`         | Groq API (direct)                      |
+| `gemini`             | `GeminiProvider`       | Google Gemini API (direct)             |
+| `openai`             | `OpenAIProvider`       | OpenAI API (direct)                    |
+| `mock`               | `MockProvider`         | Deterministic test doubles — no network |
+
+### `.env` reference
+
+```dotenv
+# ── LLM Provider selection ──────────────────────────────────────────────────
+# One of: gateway | litellm | claude | groq | gemini | openai | mock
+LLM_PROVIDER=gateway
+
+# ── InfoBeans Gateway (LLM_PROVIDER=gateway) ────────────────────────────────
+GATEWAY_URL=https://gateway.creatingwow.in
+GATEWAY_API_KEY=<your-key>
+GATEWAY_MODEL=gpt-4o                        # model name forwarded to the gateway
+GATEWAY_TIMEOUT_SECONDS=60
+
+# ── LiteLLM proxy (LLM_PROVIDER=litellm) ────────────────────────────────────
+LITELLM_BASE_URL=http://localhost:4000
+LITELLM_API_KEY=<your-litellm-key>
+LITELLM_MODEL=claude-3-5-sonnet-20241022    # any model string LiteLLM accepts
+
+# ── Anthropic Claude direct (LLM_PROVIDER=claude) ───────────────────────────
+ANTHROPIC_API_KEY=<your-anthropic-key>
+CLAUDE_MODEL=claude-3-5-sonnet-20241022
+CLAUDE_MAX_TOKENS=4096
+
+# ── Groq direct (LLM_PROVIDER=groq) ─────────────────────────────────────────
+GROQ_API_KEY=<your-groq-key>
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# ── Google Gemini direct (LLM_PROVIDER=gemini) ──────────────────────────────
+GEMINI_API_KEY=<your-gemini-key>
+GEMINI_MODEL=gemini-1.5-pro
+
+# ── OpenAI direct (LLM_PROVIDER=openai) ─────────────────────────────────────
+OPENAI_API_KEY=<your-openai-key>
+OPENAI_MODEL=gpt-4o
+OPENAI_BASE_URL=https://api.openai.com/v1   # override for Azure OpenAI or proxies
+
+# ── Shared call settings (apply to all providers unless overridden) ──────────
+LLM_TEMPERATURE=0.2
+LLM_MAX_RETRIES=3
+LLM_RETRY_BACKOFF_SECONDS=2
+```
+
+Never commit a real key. `.env` is in `.gitignore`. Use `.env.example` with placeholder values for
+documentation.
+
+### How to add a new provider
+
+1. Create `llm/providers/my_provider.py` implementing `LLMProvider`.
+2. Add `"myprovider": MyProvider` to the `_REGISTRY` dict in `ProviderFactory`.
+3. Add the relevant env vars to `.env.example` with comments.
+4. Write a `MockProvider`-backed unit test — do not call the real API in tests.
+5. Document the new `LLM_PROVIDER` value in the table above.
+
+No other file changes required.
+
+### Structured output contract
+
+Every provider implementation must honour the `schema` parameter:
+
+- If the underlying API supports native structured/JSON output (OpenAI `response_format`, Gemini
+  `response_schema`, Anthropic tool-use), use it.
+- If not (e.g. a plain-text gateway), append the JSON schema to the prompt and parse + validate the
+  response before returning.
+- If parsing fails after `LLM_MAX_RETRIES` attempts, raise `LLMStructuredOutputError` — never return
+  a partially parsed or free-text dict.
+
+Agents must never receive raw text from a provider call. The provider boundary is where text becomes
+structure.
+
+### Audit logging
+
+Every provider call must write one row to `llm_request`:
+
+```
+provider        TEXT     -- e.g. "groq"
+model           TEXT     -- exact model string used
+prompt_hash     TEXT     -- SHA-256 of the rendered prompt
+input_tokens    INT
+output_tokens   INT
+latency_ms      INT
+status          TEXT     -- "success" | "error"
+error_message   TEXT
+agent_run_id    FK
+prompt_version_id FK
+```
+
+This is how "why did this agent call cost 4 000 tokens last week but 1 200 today?" is answerable.
+
+### Testing rule
+
+`MockProvider` returns deterministic fixtures keyed on `prompt_hash`. Tests must never set
+`LLM_PROVIDER` to anything other than `mock`. If a test file imports a real provider class directly,
+that's a bug.
+
+### Implementation checklist
+
+- [ ] `llm/provider.py` — `LLMProvider` ABC + `ProviderFactory.from_env()`
+- [ ] `llm/providers/gateway_provider.py`
+- [ ] `llm/providers/litellm_provider.py`
+- [ ] `llm/providers/claude_provider.py`
+- [ ] `llm/providers/groq_provider.py`
+- [ ] `llm/providers/gemini_provider.py`
+- [ ] `llm/providers/openai_provider.py`
+- [ ] `llm/providers/mock_provider.py`
+- [ ] `.env.example` with all vars documented
+- [ ] `LLMStructuredOutputError` raised on parse failure after retries
+- [ ] `llm_request` audit table (additive migration)
+- [ ] Unit test per provider using `MockProvider` fixtures
+- [ ] Health-check endpoint (`/api/v2/health`) reports active provider + `health()` result
+
+---
+
+## 15. Prompt Library — all prompts are data, never code
+
+### Core rule
+
+Every string that instructs an LLM lives in the Prompt Library. No exceptions. This includes:
+
+- System role / persona instructions
+- User message templates (with `{{variable}}` placeholders)
+- Output schema / structured-output instructions
+- Few-shot examples
+- Chain-of-thought scaffolding
+- Critic / self-check instructions
+
+If it tells an LLM what to do, it belongs in the Prompt Library, not in a Python file.
+
+### Why
+
+- A user must be able to improve a prompt, activate the new version, and see the effect on the next
+  review run — without touching code or redeploying.
+- Every finding in the system carries a `prompt_version_id`. If a prompt changes, old findings remain
+  traceable to the exact prompt that produced them.
+- TruLens and Langsmith evaluations (Section 16) run against specific prompt versions, not moving targets.
+
+### Directory layout
+
+```
+prompts/                        ← seed files, loaded into DB on first startup
+  content_agent/
+    v1.yaml
+  story_agent/
+    v1.yaml
+  customer_focus/
+    v1.yaml
+  cio_lens/
+    v1.yaml
+  critic/
+    v1.yaml
+  proposal_context/
+    v1.yaml
+  fix_agent/
+    v1.yaml
+  <any_future_agent>/
+    v1.yaml
+```
+
+Seed files are the source of truth for initial versions. Once loaded into the DB they become immutable.
+All subsequent edits happen through the Admin UI or API, which create new DB versions — the YAML files
+are never edited after first load.
+
+### Prompt version schema (YAML seed + DB record)
+
+```yaml
+agent_id: content_agent
+version: 1
+status: active                  # active | draft | deprecated
+description: "Initial content review prompt"
+created_by: "system"
+
+system_role: |
+  You are the Content Review Agent for the InfoBeans PPT Review Platform.
+  Your job is to evaluate slide content quality, clarity, and relevance.
+  Return only the structured Agent Contract JSON. Do not add commentary.
+
+user_template: |
+  Review the following slide content extracted from a PowerPoint presentation.
+
+  Slide number: {{slide_number}}
+  Slide title: {{slide_title}}
+  Slide content: {{slide_content}}
+  Review profile: {{review_profile}}
+
+  Evaluate and return findings as the Agent Contract JSON.
+
+output_schema:
+  type: object
+  required: [agent_id, status, score, findings, summary]
+  properties:
+    agent_id:   { type: string }
+    status:     { type: string, enum: [completed, failed, skipped] }
+    score:      { type: integer, minimum: 0, maximum: 100 }
+    findings:   { type: array }
+    summary:    { type: string }
+
+few_shot_examples: []           # optional list of {input, output} pairs
+
+notes: "Baseline prompt. Tune temperature and few-shots before v2."
+```
+
+### DB tables
+
+```sql
+-- Immutable once inserted. New edits = new row with incremented version.
+CREATE TABLE IF NOT EXISTS prompt_versions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id            TEXT NOT NULL,
+    version             INTEGER NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'draft',  -- active|draft|deprecated
+    system_role         TEXT NOT NULL,
+    user_template       TEXT NOT NULL,
+    output_schema       TEXT NOT NULL,   -- JSON string
+    few_shot_examples   TEXT,            -- JSON string, nullable
+    description         TEXT,
+    created_by          TEXT,
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(agent_id, version)
+);
+
+-- Which version is active per agent (and optionally per Review Profile)
+CREATE TABLE IF NOT EXISTS prompt_activations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id            TEXT NOT NULL,
+    prompt_version_id   INTEGER NOT NULL REFERENCES prompt_versions(id),
+    review_profile      TEXT,            -- NULL = global default
+    activated_by        TEXT,
+    activated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Both tables are additive migrations — `CREATE TABLE IF NOT EXISTS`, idempotent, safe to re-run.
+
+### PromptService (`services/prompt_service.py`)
+
+```python
+class PromptService:
+    def get_active(self, agent_id: str, review_profile: str | None = None) -> PromptVersion:
+        """
+        Return the active PromptVersion for agent_id.
+        If review_profile is given, check for a profile-scoped override first,
+        then fall back to the global active version.
+        Raises PromptNotFoundError if no active version exists.
+        """
+
+    def render(self, prompt_version: PromptVersion, variables: dict) -> RenderedPrompt:
+        """
+        Substitute {{variable}} placeholders in user_template.
+        Return system_role + rendered user message + output_schema.
+        Raises PromptRenderError if a required variable is missing.
+        """
+
+    def create_version(self, agent_id: str, data: dict, created_by: str) -> PromptVersion:
+        """Create a new draft version. Does not activate it."""
+
+    def activate(self, prompt_version_id: int, review_profile: str | None, activated_by: str) -> None:
+        """Activate a version globally or for a specific Review Profile."""
+```
+
+Agents call `PromptService.get_active(agent_id)` then `render(...)`. They never build prompt strings
+themselves.
+
+### How an agent uses the Prompt Library
+
+```python
+# In any LLM-based agent — this is the ONLY permitted pattern
+prompt_version = prompt_service.get_active(self.agent_id, review_profile)
+rendered = prompt_service.render(prompt_version, {
+    "slide_number": slide.number,
+    "slide_title": slide.title,
+    "slide_content": slide.content,
+    "review_profile": review_profile,
+})
+response = llm_provider.complete(
+    system=rendered.system_role,
+    user=rendered.user_message,
+    schema=rendered.output_schema,
+)
+```
+
+### Admin UI — Prompt Management
+
+The React Admin UI must expose:
+
+| Screen              | Capability                                                        |
+|---------------------|-------------------------------------------------------------------|
+| Prompt List         | All agents, current active version, last modified, status        |
+| Prompt Editor       | Edit system role, user template, few-shots; save as new draft    |
+| Version History     | All versions per agent, diff between any two versions            |
+| Activate            | Promote a draft to active (globally or per Review Profile)       |
+| Test / Dry Run      | Run a prompt version against a sample slide, see raw output      |
+| Deprecate           | Mark old versions deprecated (never delete — audit trail)        |
+
+### Prompt variable catalogue
+
+Every `{{variable}}` used in any prompt template must be documented here. Agents are responsible for
+supplying all required variables at render time.
+
+| Variable              | Supplied by              | Used in agents                        |
+|-----------------------|--------------------------|---------------------------------------|
+| `slide_number`        | PPT extraction           | content, story, customer, proposal    |
+| `slide_title`         | PPT extraction           | content, story, customer, proposal    |
+| `slide_content`       | PPT extraction           | content, story, customer, proposal    |
+| `deck_summary`        | Content Agent output     | cio_lens, critic                      |
+| `review_profile`      | Review Request           | all agents                            |
+| `audience`            | Review Profile           | customer_focus, cio_lens, proposal    |
+| `industry`            | Review Profile           | customer_focus, cio_lens              |
+| `proposal_context`    | Review Request (optional)| proposal_context                      |
+| `all_findings`        | Aggregator               | critic                                |
+| `finding_json`        | Individual finding       | fix_agent                             |
+
+### Versioning rules
+
+1. A prompt version is immutable once its `status` moves from `draft` to `active`.
+2. To change a prompt: create a new version (draft), test it, activate it. The old version is
+   automatically deprecated.
+3. Version numbers are integers, monotonically increasing per `agent_id`. Never reuse a version number.
+4. Every `agent_run` row records `prompt_version_id` so any finding can be traced back to the exact
+   prompt text that produced it.
+
+### Implementation checklist
+
+- [ ] `prompts/<agent_id>/v1.yaml` seed files for every current agent
+- [ ] `prompt_versions` and `prompt_activations` DB tables (additive migration)
+- [ ] `PromptService` with `get_active`, `render`, `create_version`, `activate`
+- [ ] `PromptRenderError` raised on missing variable; `PromptNotFoundError` on missing active version
+- [ ] All agents updated to call `PromptService` — zero inline prompt strings remaining
+- [ ] Seed loader: on startup, load `prompts/*/v1.yaml` into DB if `version=1` does not exist
+- [ ] Admin UI: Prompt List, Editor, Version History, Activate, Test/Dry Run, Deprecate
+- [ ] `prompt_version_id` recorded on every `agent_run` and `llm_request` row
+- [ ] Unit tests: render with all variables, render with missing variable, activate/deprecate lifecycle
+
+---
+
+## 16. Observability — TruLens + Langsmith
+
+### Purpose
+
+Two complementary observability layers run alongside the platform:
+
+| Tool          | Primary role                                                              |
+|---------------|---------------------------------------------------------------------------|
+| **Langsmith** | Trace every LLM call end-to-end: inputs, outputs, latency, token cost    |
+| **TruLens**   | Evaluate prompt quality and LLM output correctness against defined metrics |
+
+Neither tool is in the critical path. If either is unavailable or disabled, the review pipeline runs
+normally. Observability is a side-channel, never a gate.
+
+### Langsmith — LLM call tracing
+
+#### What it traces
+
+Every call through `LLMProvider.complete()` is wrapped in a Langsmith run:
+
+```
+Run
+├── agent_id
+├── prompt_version_id
+├── provider + model
+├── rendered system prompt
+├── rendered user message
+├── raw LLM response
+├── parsed structured output
+├── input_tokens / output_tokens
+├── latency_ms
+├── status (success | error)
+└── review_run_id  (links back to the platform's own audit trail)
+```
+
+#### Integration point
+
+Langsmith tracing is added in `llm/provider.py` at the `LLMProvider` base class level — not in
+individual providers or agents. One decorator/wrapper, all providers traced automatically.
+
+```python
+# llm/provider.py  (illustrative — exact SDK calls may vary)
+from langsmith import traceable
+
+class LLMProvider(ABC):
+    @traceable(name="llm_complete", run_type="llm")
+    def complete(self, prompt: str, schema: dict | None = None, **kwargs) -> dict:
+        return self._complete(prompt, schema, **kwargs)
+
+    @abstractmethod
+    def _complete(self, prompt: str, schema: dict | None = None, **kwargs) -> dict:
+        ...
+```
+
+#### `.env` configuration
+
+```dotenv
+# ── Langsmith ────────────────────────────────────────────────────────────────
+LANGSMITH_ENABLED=true
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=<your-langsmith-key>
+LANGCHAIN_PROJECT=ib-ppt-validator
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+```
+
+Set `LANGSMITH_ENABLED=false` to disable tracing with zero code changes. When disabled, the wrapper
+is a no-op.
+
+#### What the Langsmith UI gives you
+
+- Full prompt + response for every LLM call, searchable by `review_run_id` or `agent_id`
+- Token usage and cost trends per agent and per prompt version
+- Latency percentiles per provider
+- Error rate per agent
+- Side-by-side comparison of two prompt versions on the same input
+
+### TruLens — prompt evaluation and correctness
+
+#### What it evaluates
+
+TruLens runs **asynchronous evaluation jobs** against completed agent runs. It does not block the
+review pipeline. Evaluations are triggered after a run completes and results are stored separately.
+
+| Metric                  | Description                                                        | Applies to              |
+|-------------------------|--------------------------------------------------------------------|-------------------------|
+| `answer_relevance`      | Is the finding relevant to the slide content?                      | All LLM agents          |
+| `groundedness`          | Is the finding grounded in the actual slide text (not hallucinated)? | All LLM agents        |
+| `context_relevance`     | Is the retrieved context (slide content) relevant to the prompt?   | All LLM agents          |
+| `coherence`             | Is the finding description coherent and well-formed?               | All LLM agents          |
+| `requirement_coverage`  | Does the agent output cover all requirements in the proposal context? | Proposal Agent only   |
+| `contradiction_detection` | Does the agent correctly identify contradictions?               | Proposal Agent, Critic  |
+| `output_schema_compliance` | Does the output conform to the declared output schema?         | All LLM agents          |
+
+#### Integration point
+
+TruLens evaluation is triggered from `ObservabilityService` after each agent run completes:
+
+```python
+# services/observability_service.py
+class ObservabilityService:
+    def record_agent_run(self, agent_run: AgentRun) -> None:
+        """Write to audit DB. If TruLens enabled, enqueue async eval job."""
+
+    def evaluate_async(self, agent_run: AgentRun, prompt_version: PromptVersion) -> None:
+        """
+        Run TruLens feedback functions against agent_run.
+        Store results in trulens_evaluations table.
+        Never called in the critical path — always async/background.
+        """
+```
+
+#### DB table for evaluation results
+
+```sql
+CREATE TABLE IF NOT EXISTS trulens_evaluations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_run_id        INTEGER NOT NULL,
+    prompt_version_id   INTEGER NOT NULL,
+    metric              TEXT NOT NULL,      -- e.g. "groundedness"
+    score               REAL,              -- 0.0 – 1.0
+    explanation         TEXT,
+    evaluated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Additive migration, idempotent.
+
+#### `.env` configuration
+
+```dotenv
+# ── TruLens ──────────────────────────────────────────────────────────────────
+TRULENS_ENABLED=true
+TRULENS_DATABASE_URL=sqlite:///trulens.db   # or postgres DSN for production
+TRULENS_EVAL_PROVIDER=openai               # provider TruLens uses for its own evals
+TRULENS_EVAL_MODEL=gpt-4o-mini             # cheap model is fine for eval
+```
+
+Set `TRULENS_ENABLED=false` to disable all evaluation jobs with zero code changes.
+
+### Prompt evaluation workflow
+
+When a new prompt version is created and before it is activated in production:
+
+```
+1. Author creates new prompt version (status: draft) in Admin UI
+2. Author clicks "Run Evaluation" in Admin UI
+3. Platform runs the draft prompt against the golden evaluation dataset
+   (a set of known PPT + expected findings pairs)
+4. TruLens scores the outputs on all applicable metrics
+5. Scores appear in Admin UI alongside the previous active version's scores
+6. Author compares: if new version scores better, activate it
+7. Langsmith shows the full trace for every eval call
+```
+
+This makes prompt improvement a measurable, evidence-based process rather than guesswork.
+
+### Observability Admin UI
+
+The React Admin UI must expose an Observability section:
+
+| Screen                  | Content                                                              |
+|-------------------------|----------------------------------------------------------------------|
+| Agent Run Dashboard     | All runs, scores, latency, token cost, status — filterable by agent |
+| LLM Call Explorer       | Langsmith-linked trace per call; prompt in / response out           |
+| Prompt Eval Results     | TruLens scores per prompt version per metric, with trend chart      |
+| Prompt Version Compare  | Side-by-side metric scores for any two prompt versions              |
+| Alerts                  | Groundedness < threshold, error rate spike, latency regression      |
+
+### Failure behaviour
+
+- Langsmith unreachable → log WARNING, continue. No finding is lost, no run is blocked.
+- TruLens eval job fails → log WARNING, mark evaluation row as `status: failed`. Review run is
+  unaffected.
+- Neither tool writes to the critical `agent_run` or `findings` tables — they are read-only consumers
+  of the audit trail.
+
+### `.env` — complete observability block
+
+```dotenv
+# ── Observability ─────────────────────────────────────────────────────────────
+
+# Langsmith
+LANGSMITH_ENABLED=true
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=<your-langsmith-key>
+LANGCHAIN_PROJECT=ib-ppt-validator
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+
+# TruLens
+TRULENS_ENABLED=true
+TRULENS_DATABASE_URL=sqlite:///trulens.db
+TRULENS_EVAL_PROVIDER=openai
+TRULENS_EVAL_MODEL=gpt-4o-mini
+```
+
+### Implementation checklist
+
+- [ ] `ObservabilityService` in `services/observability_service.py`
+- [ ] Langsmith `@traceable` wrapper on `LLMProvider.complete()` (base class, not per-provider)
+- [ ] `LANGSMITH_ENABLED` guard — no-op when false
+- [ ] TruLens feedback functions: `answer_relevance`, `groundedness`, `context_relevance`,
+      `coherence`, `output_schema_compliance`
+- [ ] Additional TruLens functions: `requirement_coverage`, `contradiction_detection` for Proposal Agent
+- [ ] `trulens_evaluations` DB table (additive migration)
+- [ ] Async eval job triggered from `ObservabilityService.record_agent_run()`
+- [ ] `TRULENS_ENABLED` guard — no-op when false
+- [ ] Golden evaluation dataset for prompt testing (separate from unit tests)
+- [ ] Admin UI: Agent Run Dashboard, LLM Call Explorer, Prompt Eval Results, Version Compare, Alerts
+- [ ] `.env.example` updated with all observability vars
+- [ ] Unit tests: observability disabled path (both flags false) — pipeline must run identically

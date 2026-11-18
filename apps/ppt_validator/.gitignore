@@ -1,0 +1,89 @@
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+wheels/
+
+# ── Virtual environments ───────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Environment / secrets ──────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+
+# ── Databases ─────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+platform.db
+test_platform.db
+
+# ── Uploads / generated files ──────────────────────────────────────────────
+uploads/
+slide_renders/
+/slide_templates/*.pptx
+
+# ── RAG / vector store ─────────────────────────────────────────────────────
+chroma_db/
+*.chroma
+
+# ── Logs ──────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Frontend ──────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Testing ───────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+
+# ── mypy / type checking ───────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ── Jupyter ───────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── LangSmith / TruLens local data ────────────────────────────────────────
+trulens.db
+langsmith_traces/
