@@ -129,7 +129,7 @@ class UserAdmin(BaseUserAdmin):
             rows.append((app.name, ", ".join(sources)))
 
         if not rows:
-            return format_html('<span id="effective-access">No access.</span>')
+            return format_html('<span id="effective-access">{}</span>', "No Access")
         body = format_html_join("", "<tr><td>{}</td><td>{}</td></tr>", rows)
         return format_html(
             '<table id="effective-access"><thead><tr><th>App</th><th>Access via</th></tr></thead>'
