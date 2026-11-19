@@ -3,11 +3,12 @@ from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
-from django.contrib.auth.forms import UserChangeForm
+from django.contrib.auth.forms import UserChangeForm, AdminUserCreationForm
 from django.db.models import Count, Prefetch
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils.html import format_html, format_html_join
+
 
 from hub.models import App, AppGrant
 from .models import User, SignupGroupRule
@@ -63,8 +64,26 @@ class BulkGrantForm(forms.Form):
         self.fields["apps"].queryset = app_choices()
 
 
+class UserAddForm(AdminUserCreationForm):
+    """'Add user' form for our custom User model, with a required email."""
+
+    class Meta(AdminUserCreationForm.Meta):
+        model = User
+        fields = ("username", "email")
+
+    def clean_email(self):
+        return self.cleaned_data["email"].strip().lower()
+
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
+    add_form = UserAddForm
+    add_fieldsets = (
+        (None, {
+            "classes": ("wide",),
+            "fields": ("username", "email", "usable_password", "password1", "password2"),
+        }),
+    )
     form = UserAppsChangeForm
     list_display = ("email", "first_name", "last_name", "app_count", "effective_count", "is_active", "is_staff", "last_login")
     search_fields = ("email", "first_name", "last_name")
